@@ -554,9 +554,10 @@ function cueHeard(words,heard){const n=words.length;if(!n)return true;const k=Ma
   for(const w of tail){for(let q=j;q<h.length;q++)if(similar(w,h[q])){hit++;j=q+1;break;}}return hit>=need&&(n<3||similar(tail[k-1],h[h.length-1])||similar(tail[k-1],h[h.length-2]||''));}
 function listenVAD(b,onDone,onFail,onProgress){
   if(!S.settings.useMic)return null;
-  let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[],proc=null,sink=null,chunks=[],busy=false,checked=0;
+  let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[],proc=null,sink=null,chunks=[],busy=false,checked=0,armed=false,lastRun=0;
   const sens=S.settings.micSens||1,need=400,quiet=(S.settings.quietSec||2)*1000;
   const words=expected(b.text).map(x=>x.w);
+  const early=words.length>=4?words.slice(0,words.length-1):words; // ordet före slutordet räcker
   const kill=()=>{dead=true;clearInterval(iv);try{proc&&proc.disconnect();sink&&sink.disconnect();}catch(e){}vadClose();};
   vadOpen().then(ok=>{if(dead){vadClose();return;}if(!ok){renderMic();onFail(VAD.err);return;}renderMic();
     const rate=VAD.ctx.sampleRate;
@@ -570,12 +571,15 @@ function listenVAD(b,onDone,onFail,onProgress){
       const useAsr=S.settings.asr!==false&&ASR.state==='ready'&&proc;
       if(!useAsr){onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/quiet):0,lv/thr);if(speech>=need&&lastVoice&&sil>quiet){kill();onDone();}return;}
       onProgress(null,lv/thr);
-      if(speech>=need&&lastVoice&&sil>650&&!busy&&lastVoice>checked){busy=true;checked=lastVoice;
+      if(armed&&sil>320){kill();onDone();return;}
+      const talking=lv>thr&&speech>=need&&now-lastRun>1100;
+      if(!busy&&!armed&&(talking||(speech>=need&&lastVoice&&sil>500&&lastVoice>checked))){busy=true;checked=lastVoice;lastRun=now;
         const audio=to16k(chunks,rate,12);
         ASR.pipe(audio,{language:'swedish',task:'transcribe'}).then(o=>{busy=false;if(dead)return;const txt=(o&&o.text||'').trim();const hw=norm(txt);
           R.heard=txt;const st=$('#rHeard');if(st)st.textContent=txt?'Hörde: '+txt:'';
           if(hw.length&&hw[hw.length-1]==='nästa'&&!words.includes('nästa')){kill();onDone();return;}
-          if(cueHeard(words,hw)){kill();onDone();}
+          if(cueHeard(words,hw)){if(Date.now()-lastVoice>300){kill();onDone();}else armed=true;}
+          else if(cueHeard(early,hw))armed=true;
         }).catch(e=>{busy=false;});}
     },50);});
   return kill;
@@ -834,7 +838,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 14 (Safari)</p>`;};
+<p class="note">Motläsaren version 15 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
