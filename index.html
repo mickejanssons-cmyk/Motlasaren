@@ -732,7 +732,7 @@ BIND.settings=(_,p)=>{const st=S.settings;
 
 /* ---------- toast & start ---------- */
 let toastT=null;
-function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;},2800);}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;},Math.max(2800,msg.length*70));}
 if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoices();if(sheetKind==='roles'||sheetKind==='settings')openSheet(sheetKind,sheetArg,true);};}catch(e){}}
 if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
 renderAll();
