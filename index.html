@@ -500,8 +500,8 @@ function listenVAD(b,onDone,onFail,onProgress){
   if(!S.settings.useMic)return null;
   let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[];
   const sens=S.settings.micSens||1;
-  const need=(b.mySpeak?b.mySpeak*.75:speakSeconds(b)*.55)*1000;
-  const pauses=expected(b.text).reduce((a,x)=>a+x.pause,0);
+  const need=400; // minst lite tal, så att ett ljud inte räknas som en replik
+  const quiet=(S.settings.quietSec||2)*1000;
   const kill=()=>{dead=true;clearInterval(iv);vadClose();};
   vadOpen().then(ok=>{if(dead){vadClose();return;}if(!ok){renderMic();onFail(VAD.err);return;}renderMic();
     iv=setInterval(()=>{if(dead)return;const lv=vadLevel();VAD.level=lv;const t=Date.now()-started;
@@ -510,8 +510,8 @@ function listenVAD(b,onDone,onFail,onProgress){
       const thr=Math.max(.012,VAD.noise*3)/sens;
       const now=Date.now();if(lv>thr){speech+=50;lastVoice=now;}
       const sil=lastVoice?now-lastVoice:0;
-      onProgress(Math.min(1,speech/need),lv/thr);
-      if(speech>=need&&lastVoice&&sil>(1.15+Math.min(pauses,2)*.5)*1000){const spoke=speech/1000;kill();b.mySpeak=Math.min(90,Math.max(.5,spoke));save();onDone();}
+      onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/quiet):0,lv/thr);
+      if(speech>=need&&lastVoice&&sil>quiet){kill();onDone();}
     },50);});
   return kill;
 }
@@ -576,7 +576,7 @@ function step(){
   const cmd=c=>{if(tok!==R.tok)return;if(c==='sufflera'){prompter();return;}R.cancel=null;if(c==='backa')$('#rBack').onclick();else if(c==='igen')step();else advance();};
   const prog=p=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar…',p);};
   if(micState==='denied'||micState==='missing'||!S.settings.useMic){if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}}
-  const kill=listenVAD(b,()=>{if(tok===R.tok)advance();},why=>{if(tok!==R.tok)return;R.cancel=null;toast('Mikrofonen gick inte att starta ('+why+'). Tryck på skärmen när du är klar.');fallback();},(p,lv)=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar – ta den tid du behöver.',p,lv);});
+  const kill=listenVAD(b,()=>{if(tok===R.tok)advance();},why=>{if(tok!==R.tok)return;R.cancel=null;toast('Mikrofonen gick inte att starta ('+why+'). Tryck på skärmen när du är klar.');fallback();},(p,lv)=>{if(tok===R.tok)setStatus(p>0?'Tystnad … går vidare strax':'Din tur. Jag lyssnar – ta den tid du behöver.',p,lv);});
   if(kill){R.cancel=kill;setStatus('Din tur. Jag lyssnar – ta den tid du behöver.',0,0);}else fallback();
 }
 function prompter(){const b=R.queue[R.idx];if(!b)return;R.hintN=(R.hintN||0)+3;R.reveal=false;renderR();}
@@ -753,7 +753,8 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <div><div class="kv"><span>Tempo för alla AI-röster</span><span id="tpv">${st.tempo.toFixed(2)}</span></div><input type="range" id="sTp" min=".7" max="1.3" step=".02" value="${st.tempo}" aria-label="Tempo för alla röster"></div>
 <label class="chk"><input type="checkbox" id="sMic"${st.useMic?' checked':''}>Lyssna med mikrofonen på mina repliker</label>
 <div><div class="kv"><span>Mikrofonens känslighet</span><span id="msv">${(st.micSens||1).toFixed(1)}</span></div><input type="range" id="sSens" min=".5" max="2.5" step=".1" value="${st.micSens||1}" aria-label="Mikrofonens känslighet"></div>
-<p class="note">Appen hör när du pratar och när du blir tyst. Den går vidare först när du har pratat ungefär så länge som repliken brukar ta och sedan är tyst en dryg sekund. Den lär sig din takt för varje replik. Hör den dig inte, höj känsligheten. Hoppar den för tidigt, sänk den.</p>
+<div><div class="kv"><span>Tystnad innan appen går vidare</span><span id="qsv">${(st.quietSec||2).toFixed(1)} s</span></div><input type="range" id="sQuiet" min="1" max="6" step=".5" value="${st.quietSec||2}" aria-label="Sekunder tystnad innan appen går vidare"></div>
+<p class="note">Appen väntar hur länge som helst tills du börjar prata. När du har sagt något och sedan är tyst så här många sekunder går den vidare. Brukar du ta längre pauser mitt i repliker, öka tiden. Hör den dig inte, höj känsligheten. Hör den bakgrundsljud som tal, sänk den.</p>
 <p class="note">${esc(micText())}</p>
 <p class="note">Utan mikrofon väntar appen hur länge som helst på din replik. Tryck var som helst på skärmen när du är klar.</p>
 <p class="note">Med mikrofonen går appen bara vidare när den hört slutorden i din replik eller när du säger "nästa". Tystnad får den aldrig att gå vidare. Glömmer du bort dig kan du säga "sufflera".</p>
@@ -761,11 +762,12 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 11 (Safari)</p>`;};
+<p class="note">Motläsaren version 12 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
   $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
+  $('#sQuiet',p).oninput=e=>{st.quietSec=+e.target.value;$('#qsv',p).textContent=st.quietSec.toFixed(1)+' s';save();};
   $('#sSens',p).oninput=e=>{st.micSens=+e.target.value;$('#msv',p).textContent=st.micSens.toFixed(1);save();};
   $('#sMic',p).onchange=e=>{st.useMic=e.target.checked;if(st.useMic&&micState==='denied')micState=SR?'unknown':'missing';save();openSheet('settings',null,true);};
   $('#sHide',p).onchange=e=>{st.hideMine=e.target.checked;save();};
