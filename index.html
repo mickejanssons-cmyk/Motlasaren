@@ -362,6 +362,8 @@ function parseLines(lines){
     const c=isName(l);
     if(c){newLine(c.name);lastWho=c.name;if(c.paren&&!/^\((v\.?\s?o\.?|voice[\s\-]?over|o\.?\s?s\.?|off|forts\.?|cont'?d)\)$/i.test(c.paren))add(c.paren);if(c.rest)add(c.rest);continue;}
     const hk=headKind(s);if(hk){blocks.push({id:uid(),type:'head',kind:hk,text:s});cur=null;continue;}
+    const nameAction=names.some(n=>s.startsWith(n+' ')&&/^\p{Ll}/u.test(s.slice(n.length+1)));
+    if(nameAction){newDir();add(s);continue;}
     const paren=/^[(\[]/.test(s),bigParen=paren&&(s.length>32||hasName(s));
     if(hasX&&diaX!=null&&l.x!=null){
       const atDia=Math.abs(l.x-diaX)<=12, lyric=l.x>diaX+12&&isCaps(s)&&!hasName(s.split(/\s+/)[0]);
@@ -740,6 +742,8 @@ ${b.type==='head'?`<label class="f" for="eKind">Typ av rubrik</label><select id=
 
 ${b.type==='head'?`<button type="button" class="primary" id="eScene">Repetera den här scenen</button>`:`<div class="row"><button type="button" class="ghost" id="eTest">Provlyssna</button><button type="button" class="primary" id="eStart">Repetera härifrån</button></div>
 <button type="button" class="ghost" id="eNewScene">Ny scen börjar här</button>`}
+${b.type==='line'?`<div class="row"><button type="button" class="ghost" id="eToDir">Markerad text → anvisning</button><button type="button" class="ghost" id="eSplit">Dela repliken vid markören</button></div>
+<p class="note">Markera en anvisning i texten ovan med fingret och tryck "Markerad text → anvisning". Den blir då en egen rad som inte läses som replik. Har du inte markerat något blir allt från markören och framåt en anvisning.</p>`:''}
 <div class="row"><button type="button" class="ghost" id="eMerge">Slå ihop med raden ovanför</button><button type="button" class="danger" id="eDel">Ta bort raden</button></div>`;};
 BIND.edit=(id,p)=>{const b=findB(id);if(!b)return;
   p.querySelectorAll('[data-type]').forEach(btn=>btn.onclick=()=>{b.type=btn.dataset.type;if(b.type==='head')b.kind=headKind(b.text)||'scene';if(b.type==='line'&&!b.who){b.who=prevWho(b)||(charList()[0]||{}).name||'ROLL';b.reader=null;b.tone='auto';}save();openSheet('edit',id,true);});
@@ -756,6 +760,17 @@ BIND.edit=(id,p)=>{const b=findB(id);if(!b)return;
   const en=$('#eNewScene',p);if(en)en.onclick=()=>{const bl=S.script.blocks,i=bl.indexOf(b);const h={id:uid(),type:'head',kind:'scene',text:'Ny scen'};bl.splice(i,0,h);save();renderScript();openSheet('edit',h.id);toast('Skriv in scenens namn.');};
   const et=$('#eTest',p);if(et)et.onclick=()=>preview(b,b.type==='line'?charCfg(b.who):{...S.settings.narrator,idx:0});
   const est=$('#eStart',p);if(est)est.onclick=()=>{b.text=normalizePauses(ta.value);save();renderScript();startRehearsal(b.id);};
+  let sel=[ta.value.length,ta.value.length];const keepSel=()=>{if(document.activeElement===ta)sel=[ta.selectionStart,ta.selectionEnd];};
+  ['select','keyup','mouseup','touchend','input'].forEach(ev=>ta.addEventListener(ev,keepSel));document.addEventListener('selectionchange',keepSel);
+  const splitAt=(a,z,asDir)=>{const v=ta.value;a=Math.max(0,Math.min(a,v.length));z=Math.max(a,Math.min(z,v.length));
+    const before=v.slice(0,a).trim(),mid=v.slice(a,z).trim(),after=v.slice(z).trim();if(!mid){toast('Markera texten först.');return;}
+    const bl=S.script.blocks;let i=bl.indexOf(b);const midB=asDir?{id:uid(),type:'dir',text:mid,reader:null}:{id:uid(),type:'line',who:b.who,text:mid,reader:b.reader,tone:'auto'};
+    const tail=after?{id:uid(),type:'line',who:b.who,text:after,reader:b.reader,tone:'auto'}:null;
+    if(before){b.text=normalizePauses(before);bl.splice(i+1,0,midB,...(tail?[tail]:[]));}
+    else{if(asDir){b.type='dir';b.text=mid;}else b.text=mid;if(tail)bl.splice(i+1,0,tail);}
+    save();closeSheet();toast(asDir?'Anvisningen är avskild och läses inte upp som replik.':'Repliken är delad i två.');};
+  const td=$('#eToDir',p);if(td)td.onclick=()=>{let [a,z]=sel;if(a===z){if(a<=0||a>=ta.value.length){toast('Markera anvisningen i texten först.');return;}z=ta.value.length;}splitAt(a,z,true);};
+  const sp=$('#eSplit',p);if(sp)sp.onclick=()=>{const a=sel[0];if(a<=0||a>=ta.value.length){toast('Placera markören där repliken ska delas.');return;}splitAt(a,ta.value.length,false);};
   $('#eMerge',p).onclick=()=>{const bl=S.script.blocks,i=bl.indexOf(b);if(i<1){toast('Det finns ingen rad ovanför.');return;}const a=bl[i-1];a.text=joinText(a.text||'',b.text);bl.splice(i,1);save();openSheet('edit',a.id);};
   $('#eDel',p).onclick=ev=>{const btn=ev.currentTarget;if(!btn.dataset.armed){btn.dataset.armed='1';btn.textContent='Tryck igen för att ta bort';return;}S.script.blocks.splice(S.script.blocks.indexOf(b),1);closeSheet();toast('Raden är borttagen.');};
 };
@@ -781,7 +796,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 27 (Safari)</p>`;};
+<p class="note">Motläsaren version 28 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
