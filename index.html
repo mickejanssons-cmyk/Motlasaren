@@ -146,6 +146,7 @@ details[open] > *:not(summary){margin-top:8px}
 .sc-go{flex:1;min-width:0;text-align:left;background:var(--stage);border:1px solid var(--rule);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
 .sc-go b{font-weight:700;overflow-wrap:anywhere}
 .sc-row .primary{min-height:auto;font-size:15px;box-shadow:none}
+.sc-row .ghost{min-height:auto;font-size:13px;padding:0 10px}
 
 /* repetition */
 #rehearse{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;
@@ -183,6 +184,12 @@ details[open] > *:not(summary){margin-top:8px}
 .r-ctrl svg{width:22px;height:22px}
 .r-ctrl button:active .ic{transform:scale(.96)}
 
+#prep{position:fixed;inset:0;z-index:45;background:var(--stage);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.prep-in{width:100%;max-width:440px;display:grid;gap:12px}
+.prep-k{margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--spot)}
+#prepT{margin:0;font-family:var(--f-display);font-weight:800;font-size:28px;letter-spacing:.04em;text-transform:uppercase;overflow-wrap:anywhere}
+.prep-p{font-family:var(--f-display);font-weight:800;font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.meter.big{height:8px;border-radius:4px}
 #toast{position:fixed;max-width:520px;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:60;max-width:calc(100% - 32px);
   background:var(--ink);color:var(--stage);padding:10px 14px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3)}
 @media (prefers-reduced-motion: reduce){.meter i,.blk.line{transition:none}}
@@ -229,6 +236,7 @@ details[open] > *:not(summary){margin-top:8px}
   </div>
 </div>
 
+<div id="prep" hidden><div class="prep-in"><p class="prep-k">Förbereder rösterna</p><h3 id="prepT"></h3><div class="prep-p" id="prepP">0 %</div><div class="meter big"><i id="prepBar" style="width:0%"></i></div><p class="note" id="prepM"></p><p class="note">Ha appen öppen tills det är klart. Ljudet sparas i telefonen och behöver bara skapas en gång.</p><button type="button" class="ghost" id="prepX">Avbryt</button></div></div>
 <div id="sheet" hidden><div class="scrim"></div><div class="panel" role="dialog" aria-modal="true"></div></div>
 <div id="toast" role="status" hidden></div>
 
@@ -473,9 +481,15 @@ async function piperSynth(key,text,pitch){const id=baseOf(key),vr=variantOf(key)
   const feeds={input:new o.Tensor('int64',BigInt64Array.from(ids.map(BigInt)),[1,ids.length]),input_lengths:new o.Tensor('int64',BigInt64Array.from([BigInt(ids.length)]),[1]),
     scales:new o.Tensor('float32',Float32Array.from([c.inference.noise_scale,c.inference.length_scale*vr.len,c.inference.noise_w]),[3])};
   if(c.speaker_id_map&&Object.keys(c.speaker_id_map).length)feeds.sid=new o.Tensor('int64',BigInt64Array.from([0n]),[1]);
-  const out=await PIPER.sess[id].run(feeds);return URL.createObjectURL(pcm2wav(out.output.data,Math.round(c.audio.sample_rate*pitch)));} // högre samplingstakt = ljusare röst; tempot återställs vid uppspelning
+  const out=await PIPER.sess[id].run(feeds);return pcm2wav(out.output.data,Math.round(c.audio.sample_rate*pitch));} // högre samplingstakt = ljusare röst; tempot återställs vid uppspelning
+const TTS_CACHE='motlasaren-repliker-v1';
+const diskKey=(id,pitch,text)=>'https://motlasaren.local/tts/'+encodeURIComponent(id+'|'+pitch+'|'+text);
+async function diskGet(k){try{const c=await caches.open(TTS_CACHE);const r=await c.match(k);return r?await r.blob():null;}catch(e){return null;}}
+async function diskHas(k){try{const c=await caches.open(TTS_CACHE);return !!(await c.match(k));}catch(e){return false;}}
+async function diskPut(k,blob){try{const c=await caches.open(TTS_CACHE);await c.put(k,new Response(blob,{headers:{'content-type':'audio/wav'}}));}catch(e){}}
+async function lineAudio(id,text,pitch){const k=diskKey(id,pitch,text);let blob=await diskGet(k);if(!blob){blob=await piperSynth(id,text,pitch);await diskPut(k,blob);}return blob;}
 function piperSay(id,text,pitch){pitch=Math.round((pitch||variantOf(id).pitch)*100)/100;const key=id+'|'+pitch+'|'+text;if(PIPER.cache.has(key))return PIPER.cache.get(key);
-  const pr=PIPER.queue=PIPER.queue.catch(()=>{}).then(()=>piperSynth(id,text,pitch)); // en i taget, så att telefonen inte överbelastas
+  const pr=PIPER.queue=PIPER.queue.catch(()=>{}).then(()=>lineAudio(id,text,pitch)).then(b=>URL.createObjectURL(b)); // en i taget, så att telefonen inte överbelastas
   pr.catch(()=>PIPER.cache.delete(key));PIPER.cache.set(key,pr);
   if(PIPER.cache.size>60){const k=PIPER.cache.keys().next().value;const old=PIPER.cache.get(k);PIPER.cache.delete(k);old&&old.then(u=>URL.revokeObjectURL(u)).catch(()=>{});}
   return pr;}
@@ -493,6 +507,23 @@ function speakPiper(b,cfg,onDone,id){
   next();
   return ()=>{dead=true;clearTimeout(timer);try{a.pause();a.onended=null;a.onerror=null;}catch(e){}if(stopper)stopper();};}
 function prefetchAhead(){if(!R.on)return;let n=0;for(let j=R.idx+1;j<R.queue.length&&n<2;j++){const b=R.queue[j];if(b.type==='line'&&readerOf(b)==='ai'){const id=piperVoiceOf(charCfg(b.who));if(id){const c=charCfg(b.who),pt=clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4);segments(b.text).forEach(sg=>{if(sg.say)piperSay(id,sg.say,pt).catch(()=>{});});}n++;}}}
+/* ---------- förbered rösterna: skapa ljud för alla AI-repliker i förväg ---------- */
+const PREP={running:false,cancel:false};
+function prepItems(blocks){const out=[],seen=new Set();for(const b of blocks){if(b.type!=='line'||!b.text||readerOf(b)!=='ai')continue;const c=charCfg(b.who),id=piperVoiceOf(c);if(!id)continue;
+  const pt=Math.round(clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4)*100)/100;for(const sg of segments(b.text)){if(!sg.say)continue;const k=id+'|'+pt+'|'+sg.say;if(seen.has(k))continue;seen.add(k);out.push({id,pt,text:sg.say});}}return out;}
+async function prepare(blocks,title){if(PREP.running)return;if(S.settings.piper===false){toast('Slå på AI-röster under Inställningar först.');return;}
+  const items=prepItems(blocks);if(!items.length){toast('Det finns inga AI-repliker att förbereda.');return;}
+  PREP.running=true;PREP.cancel=false;closeSheet();const ov=$('#prep');ov.hidden=false;keepAwake(true);
+  const show=(i,msg)=>{$('#prepT').textContent=title;$('#prepP').textContent=Math.floor(i/items.length*100)+' %';$('#prepBar').style.width=(i/items.length*100)+'%';$('#prepM').textContent=msg||`${i} av ${items.length} repliker klara`;};
+  let done=0,fails=0;const t0=Date.now();show(0,'Laddar rösterna …');
+  try{for(const id of new Set(items.map(x=>baseOf(x.id)))){if(PREP.cancel)break;$('#prepM').textContent='Laddar rösten '+PIPER_BASE[id]+' …';await piperEnsure(id);}
+    for(const it of items){if(PREP.cancel)break;const k=diskKey(it.id,it.pt,it.text);
+      if(!(await diskHas(k))){try{const blob=await piperSynth(it.id,it.text,it.pt);await diskPut(k,blob);}catch(e){fails++;}}
+      done++;const left=done<items.length?Math.round((Date.now()-t0)/done*(items.length-done)/1000):0;show(done,`${done} av ${items.length} repliker klara`+(left>5?` · cirka ${left>90?Math.round(left/60)+' min':left+' s'} kvar`:''));}
+  }catch(e){var err=e;}
+  PREP.running=false;keepAwake(false);ov.hidden=true;
+  if(err)toast('Förberedelsen stannade: '+(err&&err.message||err)+'. Kontrollera internet och försök igen.');
+  else if(PREP.cancel)toast(`Avbrutet. ${done} av ${items.length} repliker är klara och sparade.`);else toast(fails?`Klart, men ${fails} repliker gick inte att skapa. De läses av telefonens röst.`:'Klart! Alla AI-repliker är förberedda och sparade i telefonen.');}
 function speakLine(b,cfg,onDone){const id=piperVoiceOf(cfg);if(id)return speakPiper(b,cfg,onDone,id);return speakSystem(b,cfg,onDone);}
 function speakSystem(b,cfg,onDone){
   if(!hasTTS){const t=setTimeout(onDone,estSeconds(b)*1000);return ()=>clearTimeout(t);}
@@ -634,6 +665,7 @@ function endRehearsal(){vadClose();R.tok++;stopCur();try{speechSynthesis.cancel(
   const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
 function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
 $('#rClose').onclick=endRehearsal;
+$('#prepX').onclick=()=>{PREP.cancel=true;$('#prepM').textContent='Avbryter …';};
 $('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){const nW=expected(b.text).length;const base=Math.max(b.mySpeak||0,Math.max(.5,(nW*.2+Math.max(0,nW-6)*.076)*(S.settings.pace||1)));b.mySpeak=Math.min(90,base*1.35);save();toast('Okej, appen väntar längre på den repliken från och med nu.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
 $('#rRepeat').onclick=()=>{R.paused=false;step();};
 $('#rPlay').onclick=togglePause;
@@ -703,16 +735,20 @@ function applyParsed(blocks,title,isEx){
 }
 
 BUILD.scenes=()=>{const ss=sections();let lastAct='__';const rows=ss.map((x,k)=>{let h='';if(x.act!==lastAct&&x.act){h=`<div class="sc-act">${esc(x.act)}</div>`;}lastAct=x.act;
-    return h+`<div class="sc-row"><button type="button" class="sc-go" data-k="${k}"><b>${esc(x.title)}</b><span class="cnt">${x.lines} repliker · ${x.mine} dina</span></button><button type="button" class="primary" data-play="${k}">Repetera</button></div>`;}).join('');
+    return h+`<div class="sc-row"><button type="button" class="sc-go" data-k="${k}"><b>${esc(x.title)}</b><span class="cnt">${x.lines} repliker · ${x.mine} dina</span></button><button type="button" class="primary" data-play="${k}">Repetera</button><button type="button" class="ghost" data-prep="${k}" aria-label="Förbered rösterna för scenen">Förbered</button></div>`;}).join('');
   return `<h3>Scener <button type="button" class="x">Stäng</button></h3>
 <p class="note">Scenerna hittas automatiskt, till exempel AKT 2, Scen 3, 1:2, 2:1, 1A, 1b och "4. Titel". Saknas en scen: tryck på raden där den börjar, välj ⋯ och "Ny scen börjar här".</p>
 ${ss.length>1?'':'<p class="warn">Hittade inga scenrubriker i det här manuset.</p>'}
 ${rows}
-<button type="button" class="ghost" id="scAll">Repetera hela manuset</button>`;};
+<button type="button" class="ghost" id="scAll">Repetera hela manuset</button>
+<button type="button" class="primary" id="scPrep">Förbered rösterna för hela manuset</button>
+<p class="note">Skapar ljudet för alla AI-repliker i förväg, så att AI:n svarar direkt under repetitionen. Görs en gång och sparas i telefonen. Du kan också förbereda en scen i taget med knappen vid scenen.</p>`;};
 BIND.scenes=(_,p)=>{const ss=sections();
   p.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const x=ss[+b.dataset.k];closeSheet();const bl=S.script.blocks[x.start];const el=bl&&document.querySelector(`[data-id="${bl.id}"]`);const hd=x.id&&document.querySelector(`[data-id="${x.id}"]`);(hd||el)&&(hd||el).scrollIntoView({block:'start'});});
   p.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>startRehearsal(null,ss[+b.dataset.play]));
-  $('#scAll',p).onclick=()=>startRehearsal(null);};
+  $('#scAll',p).onclick=()=>startRehearsal(null);
+  $('#scPrep',p).onclick=()=>prepare(S.script.blocks,S.script.title||'Hela manuset');
+  p.querySelectorAll('[data-prep]').forEach(b=>b.onclick=()=>{const x=ss[+b.dataset.prep];prepare(S.script.blocks.slice(x.start,x.end),x.title);});};
 BUILD.roles=()=>{const cs=charList();const sv=svVoices();
   return `<h3>Roller och röster <button type="button" class="x">Klar</button></h3>
 <p class="note">Bocka för din roll. AI:n läser alla andra. Du kan också trycka på enskilda repliker i manuset för att byta.</p>
@@ -804,7 +840,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 31 (Safari)</p>`;};
+<p class="note">Motläsaren version 32 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
