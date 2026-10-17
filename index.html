@@ -174,7 +174,7 @@ details[open] > *:not(summary){margin-top:8px}
 .r-ctrl svg{width:22px;height:22px}
 .r-ctrl button:active .ic{transform:scale(.96)}
 
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:60;max-width:calc(100% - 32px);
+#toast{position:fixed;max-width:520px;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:60;max-width:calc(100% - 32px);
   background:var(--ink);color:var(--stage);padding:10px 14px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3)}
 @media (prefers-reduced-motion: reduce){.meter i,.blk.line{transition:none}}
 </style>
@@ -438,7 +438,7 @@ function preview(b,cfg){if(previewStop)previewStop();previewStop=speakLine(b,cfg
 
 /* ---------- mikrofon ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let micState=SR?'unknown':'missing';
+let micState=SR?'unknown':'missing',micErr='';
 const norm=s=>String(s).toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g,' ').replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(Boolean);
 function lev(a,b){const d=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1;j<=b.length;j++)d[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];}
 function similar(a,b){if(a===b)return true;if(a.length>=4&&b.length>=4&&a.slice(0,4)===b.slice(0,4))return true;return lev(a,b)<=(a.length>5?2:1);}
@@ -455,7 +455,7 @@ function listenFor(b,onDone,onFail,onProgress,onCmd){
   const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   const kill=()=>{dead=true;clearInterval(iv);try{rec&&rec.abort();}catch(e){}};
   const finish=()=>{if(dead)return;kill();onDone();};
-  const fail=why=>{micState='denied';kill();setTimeout(()=>onFail(why),0);};
+  const fail=why=>{micState='denied';micErr=why;kill();setTimeout(()=>onFail(why),0);};
   const iv=setInterval(()=>{if(dead||!heard)return;const sil=(Date.now()-last)/1000,r=n?matched/n:1,extra=exp[matched]?exp[matched].pause:0;
     if((matched>=n||(lastHeard&&endMatched(words,lastHeard)))&&r>=.5&&sil>.4+extra)finish();},200);
   const start=()=>{try{rec=new SR();rec.lang='sv-SE';rec.continuous=!isIOS;curTxt='';rec.interimResults=true;
@@ -529,19 +529,24 @@ function step(){
   const cmd=c=>{if(tok!==R.tok)return;if(c==='sufflera'){prompter();return;}R.cancel=null;if(c==='backa')$('#rBack').onclick();else if(c==='igen')step();else advance();};
   const prog=p=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar…',p);};
   if(micState==='denied'||micState==='missing'||!S.settings.useMic){if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}}
-  const kill=listenFor(b,()=>{if(tok===R.tok)advance();},()=>{if(tok!==R.tok)return;R.cancel=null;if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}renderMic();toast('Mikrofonen är spärrad här i Claude. Tryck på skärmen när du är klar.');fallback();},prog,cmd);
+  const kill=listenFor(b,()=>{if(tok===R.tok)advance();},()=>{if(tok!==R.tok)return;R.cancel=null;if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}renderMic();toast(micHelp());fallback();},prog,cmd);
   if(kill){R.cancel=kill;setStatus('Din tur. Jag lyssnar…',0);}else fallback();
 }
 function prompter(){const b=R.queue[R.idx];if(!b)return;R.hintN=(R.hintN||0)+3;R.reveal=false;renderR();}
 function partialHint(t,n){const ws=normalizePauses(t).replace(/\([^)]*\)/g,' ').split(/\s+/).filter(w=>w&&w!=='/'&&w!=='//');return ws.map((w,i)=>i<n?w:(w.match(/\p{L}|\p{N}/u)||[''])[0]+'…').join(' ');}
+function micHelp(){const e=micErr||'okänt';
+  if(/service-not-allowed/.test(e))return 'Röstigenkänningen är avstängd i telefonen (service-not-allowed). Slå på Diktering: Inställningar → Allmänt → Tangentbord → Aktivera diktering. Tryck sedan Mikrofon igen.';
+  if(/not-allowed|nekad|NotAllowed/.test(e))return 'Safari har nekat mikrofonen ('+e+'). Inställningar → Appar → Safari → Mikrofon → Fråga eller Tillåt. Ladda om sidan och tryck Mikrofon.';
+  return 'Mikrofonen fungerar inte ('+e+'). Tryck på skärmen när du är klar.';}
 function renderMic(){const m=$('#rMic');const on=S.settings.useMic&&micState==='ok',off=!S.settings.useMic||micState==='denied'||micState==='missing';
   m.classList.toggle('on',on);m.classList.toggle('off',off);m.textContent=on?'Mikrofon på':off?(S.settings.useMic?'Mikrofon spärrad':'Mikrofon av'):'Mikrofon';}
 $('#rMic').onclick=e=>{e.stopPropagation();
   if(S.settings.useMic&&micState==='ok'){S.settings.useMic=false;save();renderMic();step();return;}
   S.settings.useMic=true;save();if(micState==='denied')micState=SR?'unknown':'missing';
-  if(!SR){micState='missing';renderMic();toast('Mikrofonen går inte att använda här i Claude. Öppna appen i Safari så fungerar den.');return;}
+  if(!SR){micState='missing';renderMic();toast('Den här webbläsaren saknar röstigenkänning. Använd Safari.');return;}
+  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&!R.gumOk){navigator.mediaDevices.getUserMedia({audio:true}).then(st=>{st.getTracks().forEach(t=>t.stop());R.gumOk=true;$('#rMic').onclick({stopPropagation(){}});}).catch(err=>{micState='denied';micErr='mikrofon-nekad: '+(err&&err.name||err);renderMic();toast(micHelp());});return;}
   const b=R.queue[R.idx];if(b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)step();
-  else{try{const t=new SR();t.lang='sv-SE';t.onerror=ev=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(ev.error)){micState='denied';renderMic();toast('Mikrofonen är spärrad här i Claude. Öppna appen i Safari så fungerar den.');}};t.onstart=()=>{micState='ok';renderMic();try{t.abort();}catch(x){}};t.start();}catch(x){micState='denied';renderMic();}}
+  else{try{const t=new SR();t.lang='sv-SE';t.onerror=ev=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(ev.error)){micState='denied';micErr=ev.error;renderMic();toast(micHelp());}};t.onstart=()=>{micState='ok';renderMic();try{t.abort();}catch(x){}};t.start();}catch(x){micState='denied';renderMic();}}
   renderMic();};
 function renderR(){renderMic();
   const q=R.queue,b=q[R.idx],p=q[R.idx-1];
