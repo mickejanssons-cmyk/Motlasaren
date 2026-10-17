@@ -281,7 +281,7 @@ function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;c
 /* ---------- roller ---------- */
 const findB=id=>S.script.blocks.find(b=>b.id===id);
 function charList(){const m=new Map();for(const b of S.script.blocks)if(b.type==='line'&&b.who)m.set(b.who,(m.get(b.who)||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}));}
-function ensureChar(name){if(!S.settings.chars[name]){const i=Object.keys(S.settings.chars).length;S.settings.chars[name]={voiceURI:'',pitch:[1,.88,1.12,.94,1.06,.82,1.18][i%7],rate:1};}return S.settings.chars[name];}
+function ensureChar(name){if(!S.settings.chars[name]){const i=Object.keys(S.settings.chars).length;S.settings.chars[name]={voiceURI:'',pitch:1,rate:1};}return S.settings.chars[name];}
 function charIndex(name){ensureChar(name);return Object.keys(S.settings.chars).indexOf(name)%8+1;}
 function charCfg(name){const c=ensureChar(name);return {...c,idx:Object.keys(S.settings.chars).indexOf(name)};}
 const defaultReader=b=>S.settings.mine.includes(b.who)?'me':'ai';
@@ -430,8 +430,12 @@ function voiceOptions(sel){const sv=svVoices(),other=voices.filter(v=>!/^sv/i.te
 let unlocked=false;
 function unlockSpeech(){if(!hasTTS||unlocked)return;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);unlocked=true;}catch(e){}}
 /* ---------- Piper: AI-röster som körs i telefonen (rösten laddas en gång och återanvänds) ---------- */
-const PIPER_VOICES={'sv_SE-nst-medium':'NST','sv_SE-lisa-medium':'Lisa','sv_SE-alma-medium':'Alma'};
-const PIPER_ORDER=Object.keys(PIPER_VOICES);
+const PIPER_BASE={'sv_SE-nst-medium':'NST','sv_SE-lisa-medium':'Lisa','sv_SE-alma-medium':'Alma'};
+const PIPER_VARIANTS=[['',''],['@0.87@1.06',' – mörk'],['@1.12@0.95',' – ljus']];
+const PIPER_VOICES={};for(const b in PIPER_BASE)for(const [k,l] of PIPER_VARIANTS)PIPER_VOICES[b+k]=PIPER_BASE[b]+l;
+const PIPER_ORDER=['sv_SE-nst-medium','sv_SE-lisa-medium','sv_SE-nst-medium@0.87@1.06','sv_SE-lisa-medium@1.12@0.95','sv_SE-nst-medium@1.12@0.95','sv_SE-lisa-medium@0.87@1.06'];
+const baseOf=k=>String(k).split('@')[0];
+const variantOf=k=>{const p=String(k).split('@');return {pitch:parseFloat(p[1])||1,len:parseFloat(p[2])||1};};
 const PIPER_URL=id=>'https://huggingface.co/rhasspy/piper-voices/resolve/main/sv/sv_SE/'+id.split('-')[1]+'/medium/'+id+'.onnx';
 const ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
 const PHON_MOD='https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js';
@@ -447,8 +451,8 @@ async function fetchCached(url,onProg){let cache=null;try{cache=await caches.ope
   if(cache)try{await cache.put(url,new Response(buf,{headers:{'content-type':'application/octet-stream'}}));}catch(e){}
   return buf;}
 function ttsUI(){const el=$('#rTts');if(!el)return;const l=Object.keys(PIPER.loading).filter(k=>PIPER.loading[k]);
-  el.textContent=l.length?'Laddar röst '+l.map(k=>PIPER_VOICES[k]+' '+Math.round((PIPER.prog[k]||0)*100)+' %').join(', '):'';}
-function piperEnsure(id){if(PIPER.sess[id])return Promise.resolve();if(PIPER.loading[id])return PIPER.loading[id];
+  el.textContent=l.length?'Laddar röst '+l.map(k=>PIPER_BASE[k]+' '+Math.round((PIPER.prog[k]||0)*100)+' %').join(', '):'';}
+function piperEnsure(id){id=baseOf(id);if(PIPER.sess[id])return Promise.resolve();if(PIPER.loading[id])return PIPER.loading[id];
   PIPER.loading[id]=(async()=>{const o=await piperOrt();
     const cfgBytes=await fetchCached(PIPER_URL(id)+'.json');PIPER.cfg[id]=JSON.parse(new TextDecoder().decode(cfgBytes));
     const model=await fetchCached(PIPER_URL(id),p=>{PIPER.prog[id]=p;ttsUI();});
@@ -464,31 +468,31 @@ async function phonemize(text,voice){if(!PIPER.phon)PIPER.phon=await import(PHON
 function pcm2wav(pcm,rate){const n=pcm.length,buf=new ArrayBuffer(44+n*2),v=new DataView(buf);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
   w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
   for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,pcm[i]));v.setInt16(44+i*2,s<0?s*0x8000:s*0x7fff,true);}return new Blob([buf],{type:'audio/wav'});}
-async function piperSynth(id,text){await piperEnsure(id);const c=PIPER.cfg[id],o=PIPER.ort;
+async function piperSynth(key,text,pitch){const id=baseOf(key),vr=variantOf(key);await piperEnsure(id);const c=PIPER.cfg[id],o=PIPER.ort;
   const ids=(await phonemize(text,(c.espeak&&c.espeak.voice)||'sv')).map(Number);
   const feeds={input:new o.Tensor('int64',BigInt64Array.from(ids.map(BigInt)),[1,ids.length]),input_lengths:new o.Tensor('int64',BigInt64Array.from([BigInt(ids.length)]),[1]),
-    scales:new o.Tensor('float32',Float32Array.from([c.inference.noise_scale,c.inference.length_scale,c.inference.noise_w]),[3])};
+    scales:new o.Tensor('float32',Float32Array.from([c.inference.noise_scale,c.inference.length_scale*vr.len,c.inference.noise_w]),[3])};
   if(c.speaker_id_map&&Object.keys(c.speaker_id_map).length)feeds.sid=new o.Tensor('int64',BigInt64Array.from([0n]),[1]);
-  const out=await PIPER.sess[id].run(feeds);return URL.createObjectURL(pcm2wav(out.output.data,c.audio.sample_rate));}
-function piperSay(id,text){const key=id+'|'+text;if(PIPER.cache.has(key))return PIPER.cache.get(key);
-  const pr=PIPER.queue=PIPER.queue.catch(()=>{}).then(()=>piperSynth(id,text)); // en i taget, så att telefonen inte överbelastas
+  const out=await PIPER.sess[id].run(feeds);return URL.createObjectURL(pcm2wav(out.output.data,Math.round(c.audio.sample_rate*pitch)));} // högre samplingstakt = ljusare röst; tempot återställs vid uppspelning
+function piperSay(id,text,pitch){pitch=Math.round((pitch||variantOf(id).pitch)*100)/100;const key=id+'|'+pitch+'|'+text;if(PIPER.cache.has(key))return PIPER.cache.get(key);
+  const pr=PIPER.queue=PIPER.queue.catch(()=>{}).then(()=>piperSynth(id,text,pitch)); // en i taget, så att telefonen inte överbelastas
   pr.catch(()=>PIPER.cache.delete(key));PIPER.cache.set(key,pr);
   if(PIPER.cache.size>60){const k=PIPER.cache.keys().next().value;const old=PIPER.cache.get(k);PIPER.cache.delete(k);old&&old.then(u=>URL.revokeObjectURL(u)).catch(()=>{});}
   return pr;}
 function piperUnlock(){try{if(!PIPER.audio){PIPER.audio=new Audio();PIPER.audio.setAttribute('playsinline','');}PIPER.audio.src=SILENT;const p=PIPER.audio.play();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
-function piperVoiceOf(cfg){if(S.settings.piper===false)return null;const v=cfg&&cfg.voiceURI||'';if(v.startsWith('piper:'))return v.slice(6);if(v)return null;return PIPER_ORDER[(cfg&&cfg.idx||0)%2];}
+function piperVoiceOf(cfg){if(S.settings.piper===false)return null;const v=cfg&&cfg.voiceURI||'';if(v.startsWith('piper:'))return v.slice(6);if(v)return null;return PIPER_ORDER[(cfg&&cfg.idx||0)%PIPER_ORDER.length];}
 function speakPiper(b,cfg,onDone,id){
   const segs=segments(b.text);let i=0,dead=false,timer=null,stopper=null;const a=PIPER.audio||(PIPER.audio=new Audio());
-  const rate=clamp((cfg.pitch||1)*(cfg.rate||1)*(S.settings.tempo||1),.7,1.4);
+  const pitch=clamp(variantOf(id).pitch*(cfg.pitch||1),.7,1.4),tempo=clamp((cfg.rate||1)*(S.settings.tempo||1),.7,1.4),rate=clamp(tempo/pitch,.5,2);
   const fail=e=>{if(dead)return;PIPER.err=String(e&&e.message||e);if(!PIPER.warned){PIPER.warned=true;toast('AI-rösten gick inte att använda ('+PIPER.err.slice(0,60)+'). Telefonens röst läser i stället.');}
     const rest={...b,text:segs.slice(Math.max(0,i-1)).map(x=>x.say||(x.pause>=S.settings.longPause?' // ':' / ')).join(' ')};stopper=speakSystem(rest,cfg,onDone);};
   const next=()=>{if(dead)return;if(i>=segs.length){dead=true;onDone();return;}const sg=segs[i++];
     if(sg.pause){timer=setTimeout(next,sg.pause*1000);return;}
-    piperSay(id,sg.say).then(url=>{if(dead)return;a.onended=()=>next();a.onerror=()=>fail('uppspelning');a.src=url;try{a.preservesPitch=false;a.webkitPreservesPitch=false;}catch(e){}a.playbackRate=rate;
+    piperSay(id,sg.say,pitch).then(url=>{if(dead)return;a.onended=()=>next();a.onerror=()=>fail('uppspelning');a.src=url;try{a.preservesPitch=true;a.webkitPreservesPitch=true;}catch(e){}a.playbackRate=rate;
       const p=a.play();if(p&&p.catch)p.catch(fail);}).catch(fail);};
   next();
   return ()=>{dead=true;clearTimeout(timer);try{a.pause();a.onended=null;a.onerror=null;}catch(e){}if(stopper)stopper();};}
-function prefetchAhead(){if(!R.on)return;let n=0;for(let j=R.idx+1;j<R.queue.length&&n<2;j++){const b=R.queue[j];if(b.type==='line'&&readerOf(b)==='ai'){const id=piperVoiceOf(charCfg(b.who));if(id)segments(b.text).forEach(sg=>{if(sg.say)piperSay(id,sg.say).catch(()=>{});});n++;}}}
+function prefetchAhead(){if(!R.on)return;let n=0;for(let j=R.idx+1;j<R.queue.length&&n<2;j++){const b=R.queue[j];if(b.type==='line'&&readerOf(b)==='ai'){const id=piperVoiceOf(charCfg(b.who));if(id){const c=charCfg(b.who),pt=clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4);segments(b.text).forEach(sg=>{if(sg.say)piperSay(id,sg.say,pt).catch(()=>{});});}n++;}}}
 function speakLine(b,cfg,onDone){const id=piperVoiceOf(cfg);if(id)return speakPiper(b,cfg,onDone,id);return speakSystem(b,cfg,onDone);}
 function speakSystem(b,cfg,onDone){
   if(!hasTTS){const t=setTimeout(onDone,estSeconds(b)*1000);return ()=>clearTimeout(t);}
@@ -723,7 +727,7 @@ ${cs.map((c,i)=>{const cfg=ensureChar(c.name),mine=S.settings.mine.includes(c.na
     <div class="row"><button type="button" class="ghost test">Provlyssna</button>
     <select id="m-${i}" class="merge" aria-label="Slå ihop med annan roll"><option value="">Slå ihop med…</option>${cs.filter(o=>o.name!==c.name).map(o=>`<option value="${esc(o.name)}">${esc(o.name)}</option>`).join('')}</select></div>
   </div></div>`;}).join('')}
-<p class="note">AI-rösterna NST, Lisa och Alma finns i listan Röst under AI-röster (Piper). Fler svenska röster finns inte för appen.</p>`;};
+<p class="note">Välj röst i listan Röst under AI-röster (Piper): NST, Lisa och Alma, var och en i vanlig, mörk och ljus variant. Använder du bara NST och Lisa (alla varianter) behöver bara två röster laddas ner.</p>`;};
 BIND.roles=(_,p)=>{p.querySelectorAll('.role').forEach(row=>{const name=row.dataset.name,c=ensureChar(name);
   row.querySelector('.mineChk').onchange=e=>{const m=new Set(S.settings.mine);e.target.checked?m.add(name):m.delete(name);S.settings.mine=[...m];save();row.querySelector('.role-b').hidden=e.target.checked;};
   row.querySelector('.vSel').onchange=e=>{c.voiceURI=e.target.value;save();};
@@ -788,7 +792,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sMic"${st.useMic?' checked':''}>Lyssna med mikrofonen på mina repliker</label>
 <div><div class="kv"><span>Mikrofonens känslighet</span><span id="msv">${(st.micSens||1).toFixed(1)}</span></div><input type="range" id="sSens" min=".5" max="2.5" step=".1" value="${st.micSens||1}" aria-label="Mikrofonens känslighet"></div>
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
-<p class="note">Tre svenska AI-röster som körs i telefonen: NST, Lisa och Alma. Varje röst är ungefär 60 MB och laddas ner första gången den används. Använd gärna bara en eller två röster, det sparar minne. Välj röst per roll under Roller. Gratis och fungerar utan internet efter nedladdningen.</p>
+<p class="note">Nio svenska AI-röster som körs i telefonen: NST, Lisa och Alma, var och en i en vanlig, en mörk och en ljus variant. Varianterna av samma röst kostar ingen extra nedladdning. Varje röst är ungefär 60 MB och laddas ner första gången den används. Använd gärna bara en eller två röster, det sparar minne. Välj röst per roll under Roller. Gratis och fungerar utan internet efter nedladdningen.</p>
 <button type="button" class="ghost" id="sPiperLoad">Ladda ner rösterna som används nu</button>
 <div><div class="kv"><span>Min taltakt</span><span id="pcv">${paceLabel(st.pace||1)}</span></div><input type="range" id="sPace" min=".7" max="1.8" step=".05" value="${st.pace||1}" aria-label="Hur mycket tid appen ger dig per replik"></div>
 <div><div class="kv"><span>Tystnad efter din replik innan appen går vidare</span><span id="qsv">${(st.quietSec||.8).toFixed(1)} s</span></div><input type="range" id="sQuiet" min=".4" max="4" step=".1" value="${st.quietSec||.8}" aria-label="Sekunder tystnad innan appen går vidare"></div>
@@ -800,13 +804,13 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 30 (Safari)</p>`;};
+<p class="note">Motläsaren version 31 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
   $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
   $('#sPiper',p).onchange=e=>{st.piper=e.target.checked;save();};
-  $('#sPiperLoad',p).onclick=()=>{const ids=[...new Set(charList().filter(c=>!S.settings.mine.includes(c.name)).map(c=>piperVoiceOf(charCfg(c.name))).filter(Boolean))];ids.reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(e=>toast('Rösten '+PIPER_VOICES[id]+' kunde inte laddas: '+(e&&e.message||e))),Promise.resolve()).then(()=>toast('Rösterna är klara.'));toast('Laddar ner '+ids.map(i=>PIPER_VOICES[i]).join(' och ')+'. Det tar en stund första gången.');};
+  $('#sPiperLoad',p).onclick=()=>{const ids=[...new Set(charList().filter(c=>!S.settings.mine.includes(c.name)).map(c=>piperVoiceOf(charCfg(c.name))).filter(Boolean).map(baseOf))];ids.reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(e=>toast('Rösten '+PIPER_BASE[id]+' kunde inte laddas: '+(e&&e.message||e))),Promise.resolve()).then(()=>toast('Rösterna är klara.'));toast('Laddar ner '+ids.map(i=>PIPER_BASE[i]).join(' och ')+'. Det tar en stund första gången.');};
   $('#sPace',p).oninput=e=>{st.pace=+e.target.value;$('#pcv',p).textContent=paceLabel(st.pace);save();};
   $('#sQuiet',p).oninput=e=>{st.quietSec=+e.target.value;$('#qsv',p).textContent=st.quietSec.toFixed(1)+' s';save();};
   $('#sSens',p).oninput=e=>{st.micSens=+e.target.value;$('#msv',p).textContent=st.micSens.toFixed(1);save();};
