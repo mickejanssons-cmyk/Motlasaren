@@ -8,10 +8,13 @@
 <meta name="apple-mobile-web-app-title" content="Motläsaren">
 <link rel="icon" type="image/png" href="icon-512.png?v=3">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<script>
+window.addEventListener('error',function(e){try{var d=document.getElementById('diag')||document.createElement('div');d.id='diag';d.style.cssText='position:fixed;left:8px;right:8px;top:40px;z-index:99;background:#B42318;color:#fff;padding:10px;border-radius:10px;font:14px -apple-system,sans-serif';d.textContent='Fel i appen: '+(e.message||e)+' (rad '+(e.lineno||'?')+')';(document.body||document.documentElement).appendChild(d);}catch(x){}});
+</script>
 <title>Motläsaren</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Familjen+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <style>
 /* Layout: en black box-scen. Manuset som en kolumn i strålkastarljus; scenrubriker som filmklappor; fast "Repetera"-knapp nertill; repetitionen som en egen scen med transportknappar */
 :root{
