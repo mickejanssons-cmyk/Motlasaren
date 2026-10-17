@@ -272,7 +272,7 @@ const TONE_WORDS=[['arg',/arg|ilsk|rasande|fräser|skarpt|irriter|vred/],['ledse
 const defaults=()=>({mine:[],chars:{},shortPause:.6,longPause:1.6,useMic:true,dictation:false,fallback:'tap',asr:false,quietSec:.8,v:3,hideMine:false,readDirs:false,narrator:{voiceURI:'',pitch:1,rate:1},tempo:1});
 let S={script:null,settings:defaults(),pos:null,example:false};
 function save(){try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){toast('Kunde inte spara i telefonen. Manuset kan vara för stort.');}}
-function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;const s=JSON.parse(raw);if(!s||!s.script||!Array.isArray(s.script.blocks))return false;S={...S,...s,settings:{...defaults(),...(s.settings||{})}};if((S.settings.v||1)<2){S.settings.fallback='tap';S.settings.v=2;}if(S.settings.v<3){S.settings.asr=false;S.settings.quietSec=.8;S.settings.v=3;}if(S.settings.v<4){S.settings.quietSec=Math.max(S.settings.quietSec||1,1);S.settings.v=4;}S.settings.dictation=false;return true;}catch(e){return false;}}
+function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;const s=JSON.parse(raw);if(!s||!s.script||!Array.isArray(s.script.blocks))return false;S={...S,...s,settings:{...defaults(),...(s.settings||{})}};if((S.settings.v||1)<2){S.settings.fallback='tap';S.settings.v=2;}if(S.settings.v<3){S.settings.asr=false;S.settings.quietSec=.8;S.settings.v=3;}if(S.settings.v<4){S.settings.quietSec=Math.max(S.settings.quietSec||1,1);S.settings.v=4;}if(S.settings.v<5){S.settings.pace=S.settings.pace||1.15;S.settings.v=5;}S.settings.dictation=false;return true;}catch(e){return false;}}
 
 /* ---------- roller ---------- */
 const findB=id=>S.script.blocks.find(b=>b.id===id);
@@ -530,7 +530,8 @@ function listenVAD(b,onDone,onFail,onProgress){
   if(!S.settings.useMic)return null;
   let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[];
   const sens=S.settings.micSens||1,quiet=(S.settings.quietSec||.8)*1000;
-  const est=Math.max(.5,expected(b.text).length/3.4*.8); // snabb läsning ca 3,4 ord/s, minst 80 % av den tiden
+  const nW=expected(b.text).length;
+  const est=Math.max(.5,(nW*.26+Math.max(0,nW-10)*.08)*(S.settings.pace||1)); // ca 0,26 s tal per ord, extra tid för långa repliker
   const need=Math.max(500,Math.max(est,(b.mySpeak||0)*.85)*1000);
   const pauses=expected(b.text).reduce((a,x)=>a+x.pause,0);
   const kill=()=>{dead=true;clearInterval(iv);vadClose();};
@@ -623,7 +624,7 @@ function endRehearsal(){vadClose();R.tok++;stopCur();try{speechSynthesis.cancel(
   const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
 function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
 $('#rClose').onclick=endRehearsal;
-$('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){const base=Math.max(b.mySpeak||0,Math.max(.5,expected(b.text).length/3.4*.8));b.mySpeak=Math.min(90,base*1.35);save();toast('Okej, appen väntar längre på den repliken från och med nu.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
+$('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){const nW=expected(b.text).length;const base=Math.max(b.mySpeak||0,Math.max(.5,(nW*.26+Math.max(0,nW-10)*.08)*(S.settings.pace||1)));b.mySpeak=Math.min(90,base*1.35);save();toast('Okej, appen väntar längre på den repliken från och med nu.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
 $('#rRepeat').onclick=()=>{R.paused=false;step();};
 $('#rPlay').onclick=togglePause;
 $('#rNext').onclick=()=>{if(R.idx<R.queue.length){R.paused=false;advance();}};
@@ -759,6 +760,7 @@ BIND.edit=(id,p)=>{const b=findB(id);if(!b)return;
   $('#eDel',p).onclick=ev=>{const btn=ev.currentTarget;if(!btn.dataset.armed){btn.dataset.armed='1';btn.textContent='Tryck igen för att ta bort';return;}S.script.blocks.splice(S.script.blocks.indexOf(b),1);closeSheet();toast('Raden är borttagen.');};
 };
 
+function paceLabel(v){return v<.85?'snabb':v<1.15?'normal':v<1.45?'lugn':'mycket lugn';}
 function micText(){if(!S.settings.useMic)return 'Avstängd. Du trycker på skärmen efter dina repliker.';return VAD.state==='denied'?'Mikrofonen gick inte att starta ('+VAD.err+').':'Mikrofonen startas när det är din tur.';}
 BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type="button" class="x">Klar</button></h3>
 <div><div class="kv"><span>Kort paus</span><span id="spv">${st.shortPause.toFixed(1)} s</span></div><input type="range" id="sPs" min=".2" max="2" step=".1" value="${st.shortPause}" aria-label="Kort paus i sekunder"></div>
@@ -769,8 +771,9 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
 <p class="note">Tre svenska AI-röster som körs i telefonen: NST, Lisa och Alma. Varje röst är ungefär 60 MB och laddas ner första gången den används. Använd gärna bara en eller två röster, det sparar minne. Välj röst per roll under Roller. Gratis och fungerar utan internet efter nedladdningen.</p>
 <button type="button" class="ghost" id="sPiperLoad">Ladda ner rösterna som används nu</button>
+<div><div class="kv"><span>Min taltakt</span><span id="pcv">${paceLabel(st.pace||1)}</span></div><input type="range" id="sPace" min=".7" max="1.8" step=".05" value="${st.pace||1}" aria-label="Hur mycket tid appen ger dig per replik"></div>
 <div><div class="kv"><span>Tystnad efter din replik innan appen går vidare</span><span id="qsv">${(st.quietSec||.8).toFixed(1)} s</span></div><input type="range" id="sQuiet" min=".4" max="4" step=".1" value="${st.quietSec||.8}" aria-label="Sekunder tystnad innan appen går vidare"></div>
-<p class="note">Appen väntar hur länge som helst tills du börjar prata. Den räknar ut hur länge repliken tar att säga i snabb takt och går vidare först när du har pratat nästan så länge och sedan är tyst så här länge. Går den vidare för tidigt: tryck Backa direkt, så väntar den längre på just den repliken i fortsättningen. Hör den dig inte, höj känsligheten. Hoppar den för tidigt, sänk den eller öka tystnaden.</p>
+<p class="note">Appen väntar hur länge som helst tills du börjar prata. Den räknar ut hur länge repliken tar att säga i snabb takt och går vidare först när du har pratat nästan så länge och sedan är tyst så här länge. Dra Min taltakt åt höger om du behöver mer tid. Går den vidare för tidigt på en viss replik: tryck Backa direkt, så väntar den längre på just den repliken i fortsättningen. Hör den dig inte, höj känsligheten. Hoppar den för tidigt, sänk den eller öka tystnaden.</p>
 <p class="note">${esc(micText())}</p>
 <p class="note">Utan mikrofon väntar appen hur länge som helst på din replik. Tryck var som helst på skärmen när du är klar.</p>
 <p class="note">Med mikrofonen går appen bara vidare när den hört slutorden i din replik eller när du säger "nästa". Tystnad får den aldrig att gå vidare. Glömmer du bort dig kan du säga "sufflera".</p>
@@ -778,13 +781,14 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 20 (Safari)</p>`;};
+<p class="note">Motläsaren version 21 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
   $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
   $('#sPiper',p).onchange=e=>{st.piper=e.target.checked;save();};
   $('#sPiperLoad',p).onclick=()=>{const ids=[...new Set(charList().filter(c=>!S.settings.mine.includes(c.name)).map(c=>piperVoiceOf(charCfg(c.name))).filter(Boolean))];ids.reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(e=>toast('Rösten '+PIPER_VOICES[id]+' kunde inte laddas: '+(e&&e.message||e))),Promise.resolve()).then(()=>toast('Rösterna är klara.'));toast('Laddar ner '+ids.map(i=>PIPER_VOICES[i]).join(' och ')+'. Det tar en stund första gången.');};
+  $('#sPace',p).oninput=e=>{st.pace=+e.target.value;$('#pcv',p).textContent=paceLabel(st.pace);save();};
   $('#sQuiet',p).oninput=e=>{st.quietSec=+e.target.value;$('#qsv',p).textContent=st.quietSec.toFixed(1)+' s';save();};
   $('#sSens',p).oninput=e=>{st.micSens=+e.target.value;$('#msv',p).textContent=st.micSens.toFixed(1);save();};
   $('#sMic',p).onchange=e=>{st.useMic=e.target.checked;if(st.useMic&&micState==='denied')micState=SR?'unknown':'missing';save();openSheet('settings',null,true);};
