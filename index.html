@@ -892,10 +892,21 @@ if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoice
 if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
 renderAll();
 /* Google-nyckel via länk: #gkey=förslag1,förslag2 … appen provar och sparar den som fungerar */
-(async()=>{const m=location.hash.match(/^#gkey=([A-Za-z0-9_,\-]+)$/);if(!m)return;try{history.replaceState(null,'',location.pathname);}catch(e){}
-  const cands=m[1].split(',').filter(Boolean);toast('Kontrollerar Google-nyckeln …');
-  for(const k of cands){try{const r=await fetch('https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key='+encodeURIComponent(k));if(r.ok){S.settings.gKey=k;const v=await googleVoices();S.settings.gVoices=v;save();toast(`Google-nyckeln är sparad. ${v.length} svenska röster finns nu under Roller.`);return;}}catch(e){}}
-  toast('Ingen av nycklarna fungerade. Skicka en ny skärmbild till Claude.');})();
+(async()=>{const m=location.hash.match(/^#gkey=([A-Za-z0-9_,\-]+)$/);if(!m)return;
+  const box=document.createElement('div');box.style.cssText='position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:9999;background:#1d1a17;color:#f3ead8;border:1px solid #c9a24a;border-radius:14px;padding:16px;font:15px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 10px 40px #0008';
+  const show=(h,ok)=>{box.innerHTML=h+'<div style="margin-top:12px;text-align:right"><button style="font:inherit;padding:8px 16px;border-radius:10px;border:0;background:#c9a24a;color:#1d1a17">OK</button></div>';box.querySelector('button').onclick=()=>box.remove();if(!box.isConnected)document.body.appendChild(box);};
+  show('Kontrollerar Google-nyckeln …');
+  const cands=m[1].split(',').filter(Boolean);let errs=[];
+  for(const k of cands){try{const r=await fetch('https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key='+encodeURIComponent(k));const j=await r.json().catch(()=>({}));
+      if(r.ok){S.settings.gKey=k;const v=await googleVoices();S.settings.gVoices=v;save();try{history.replaceState(null,'',location.pathname);}catch(e){}
+        show(`<b>Klart! Google-nyckeln är sparad.</b><br>${v.length} svenska röster finns nu under Roller.<br><br>Nästa steg: Inställningar → ”Ge alla motspelare olika Google-röster”, sedan Scener → ”Förbered rösterna”.`);return;}
+      errs.push((j.error&&j.error.message)||('HTTP '+r.status));}catch(e){errs.push('Nätverksfel: '+e.message);}}
+  const all=errs.join(' ');let why;
+  if(/has not been used|is disabled|SERVICE_DISABLED|not enabled/i.test(all))why='Nyckeln stämmer, men <b>Googles rösttjänst är inte påslagen</b> i ditt projekt. Säg till Claude, så får du en knapp att trycka på.';
+  else if(/not valid|API_KEY_INVALID/i.test(all))why='Google säger att nyckeln är <b>ogiltig</b>, alltså lästes den fel från skärmbilden.';
+  else if(/referer|blocked/i.test(all))why='Nyckeln är <b>spärrad för den här webbplatsen</b>.';
+  else why='Okänt fel.';
+  show(`<b>Nyckeln kunde inte sparas.</b><br>${why}<br><br><span style="opacity:.7;font-size:13px">Googles svar: ${(errs[errs.length-1]||'').replace(/</g,'&lt;').slice(0,300)}</span><br><br>Ta en skärmbild av den här rutan och skicka till Claude.`);})();
 })();
 </script>
 
