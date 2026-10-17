@@ -141,6 +141,8 @@ details[open] > *:not(summary){margin-top:8px}
 .cnt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .role-b{display:grid;gap:10px;padding-left:30px}
 .kv{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gbox{display:grid;gap:10px;padding:14px;border:1px solid var(--rule);border-radius:14px;background:var(--stage)}
+.gbox input{background:var(--wing)}
 .sc-act{font-family:var(--f-display);font-weight:800;font-size:20px;letter-spacing:.05em;text-transform:uppercase;margin-top:8px}
 .sc-row{display:flex;gap:8px;align-items:stretch}
 .sc-go{flex:1;min-width:0;text-align:left;background:var(--stage);border:1px solid var(--rule);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
@@ -434,7 +436,8 @@ const svVoices=()=>voices.filter(v=>/^sv/i.test(v.lang));
 function voiceFor(cfg){if(cfg&&cfg.voiceURI){const v=voices.find(v=>v.voiceURI===cfg.voiceURI);if(v)return v;}const sv=svVoices();return sv.length?sv[(cfg&&cfg.idx||0)%sv.length]:null;}
 function voiceOptions(sel){const sv=svVoices(),other=voices.filter(v=>!/^sv/i.test(v.lang));const pv=`<optgroup label="AI-röster (Piper)">${Object.entries(PIPER_VOICES).map(([k,l])=>`<option value="piper:${k}"${sel==='piper:'+k?' selected':''}>${l}</option>`).join('')}</optgroup>`;
   const o=v=>`<option value="${esc(v.voiceURI)}"${v.voiceURI===sel?' selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`;
-  return `<option value="">Automatisk</option>${pv}${sv.length?`<optgroup label="Svenska">${sv.map(o).join('')}</optgroup>`:''}${other.length?`<optgroup label="Andra språk">${other.map(o).join('')}</optgroup>`:''}`;}
+  const gv=(S.settings.gVoices||[]).length?`<optgroup label="Google (molnet)">${S.settings.gVoices.map(v=>`<option value="google:${esc(v.name)}"${sel==='google:'+v.name?' selected':''}>${esc(gLabel(v))}</option>`).join('')}</optgroup>`:'';
+  return `<option value="">Automatisk</option>${gv}${pv}${sv.length?`<optgroup label="Svenska">${sv.map(o).join('')}</optgroup>`:''}${other.length?`<optgroup label="Andra språk">${other.map(o).join('')}</optgroup>`:''}`;}
 let unlocked=false;
 function unlockSpeech(){if(!hasTTS||unlocked)return;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);unlocked=true;}catch(e){}}
 /* ---------- Piper: AI-röster som körs i telefonen (rösten laddas en gång och återanvänds) ---------- */
@@ -487,17 +490,30 @@ const diskKey=(id,pitch,text)=>'https://motlasaren.local/tts/'+encodeURIComponen
 async function diskGet(k){try{const c=await caches.open(TTS_CACHE);const r=await c.match(k);return r?await r.blob():null;}catch(e){return null;}}
 async function diskHas(k){try{const c=await caches.open(TTS_CACHE);return !!(await c.match(k));}catch(e){return false;}}
 async function diskPut(k,blob){try{const c=await caches.open(TTS_CACHE);await c.put(k,new Response(blob,{headers:{'content-type':'audio/wav'}}));}catch(e){}}
-async function lineAudio(id,text,pitch){const k=diskKey(id,pitch,text);let blob=await diskGet(k);if(!blob){blob=await piperSynth(id,text,pitch);await diskPut(k,blob);}return blob;}
+/* ---------- Google-röster (molnet, med egen nyckel som bara sparas i telefonen) ---------- */
+const isGoogle=id=>String(id||'').startsWith('google:');
+async function googleSynth(name,text){const key=(S.settings.gKey||'').trim();if(!key)throw new Error('Ingen Google-nyckel inlagd');
+  const body={input:{text},voice:{languageCode:'sv-SE',name},audioConfig:{audioEncoding:'MP3'}};
+  const res=await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await res.json().catch(()=>({}));if(!res.ok)throw new Error('Google: '+((j.error&&j.error.message)||('HTTP '+res.status)));
+  const bin=atob(j.audioContent||''),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:'audio/mpeg'});}
+async function googleVoices(){const key=(S.settings.gKey||'').trim();if(!key)throw new Error('Skriv in nyckeln först.');
+  const res=await fetch('https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key='+encodeURIComponent(key));const j=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error((j.error&&j.error.message)||('HTTP '+res.status));
+  const rank=n=>/Chirp3-HD/.test(n)?0:/Chirp/.test(n)?1:/Neural2/.test(n)?2:/Wavenet/i.test(n)?3:4;
+  return (j.voices||[]).filter(v=>(v.languageCodes||[]).includes('sv-SE')).map(v=>({name:v.name,g:v.ssmlGender})).sort((a,b)=>rank(a.name)-rank(b.name)||a.name.localeCompare(b.name));}
+const gLabel=v=>v.name.replace(/^sv-SE-/,'').replace('Chirp3-HD-','Chirp HD – ')+(v.g==='FEMALE'?' (kvinna)':v.g==='MALE'?' (man)':'');
+async function lineAudio(id,text,pitch){if(isGoogle(id))pitch=1;const k=diskKey(id,pitch,text);let blob=await diskGet(k);if(!blob){blob=isGoogle(id)?await googleSynth(id.slice(7),text):await piperSynth(id,text,pitch);await diskPut(k,blob);}return blob;}
 function piperSay(id,text,pitch){pitch=Math.round((pitch||variantOf(id).pitch)*100)/100;const key=id+'|'+pitch+'|'+text;if(PIPER.cache.has(key))return PIPER.cache.get(key);
   const pr=PIPER.queue=PIPER.queue.catch(()=>{}).then(()=>lineAudio(id,text,pitch)).then(b=>URL.createObjectURL(b)); // en i taget, så att telefonen inte överbelastas
   pr.catch(()=>PIPER.cache.delete(key));PIPER.cache.set(key,pr);
   if(PIPER.cache.size>60){const k=PIPER.cache.keys().next().value;const old=PIPER.cache.get(k);PIPER.cache.delete(k);old&&old.then(u=>URL.revokeObjectURL(u)).catch(()=>{});}
   return pr;}
 function piperUnlock(){try{if(!PIPER.audio){PIPER.audio=new Audio();PIPER.audio.setAttribute('playsinline','');}PIPER.audio.src=SILENT;const p=PIPER.audio.play();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
-function piperVoiceOf(cfg){if(S.settings.piper===false)return null;const v=cfg&&cfg.voiceURI||'';if(v.startsWith('piper:'))return v.slice(6);if(v)return null;return PIPER_ORDER[(cfg&&cfg.idx||0)%PIPER_ORDER.length];}
+function piperVoiceOf(cfg){const v=cfg&&cfg.voiceURI||'';if(v.startsWith('google:'))return S.settings.gKey?v:null;if(S.settings.piper===false)return null;if(v.startsWith('piper:'))return v.slice(6);if(v)return null;return PIPER_ORDER[(cfg&&cfg.idx||0)%PIPER_ORDER.length];}
 function speakPiper(b,cfg,onDone,id){
   const segs=segments(b.text);let i=0,dead=false,timer=null,stopper=null;const a=PIPER.audio||(PIPER.audio=new Audio());
-  const pitch=clamp(variantOf(id).pitch*(cfg.pitch||1),.7,1.4),tempo=clamp((cfg.rate||1)*(S.settings.tempo||1),.7,1.4),rate=clamp(tempo/pitch,.5,2);
+  const pitch=isGoogle(id)?1:clamp(variantOf(id).pitch*(cfg.pitch||1),.7,1.4),tempo=clamp((cfg.rate||1)*(S.settings.tempo||1),.7,1.4),rate=clamp(tempo/pitch,.5,2);
   const fail=e=>{if(dead)return;PIPER.err=String(e&&e.message||e);if(!PIPER.warned){PIPER.warned=true;toast('AI-rösten gick inte att använda ('+PIPER.err.slice(0,60)+'). Telefonens röst läser i stället.');}
     const rest={...b,text:segs.slice(Math.max(0,i-1)).map(x=>x.say||(x.pause>=S.settings.longPause?' // ':' / ')).join(' ')};stopper=speakSystem(rest,cfg,onDone);};
   const next=()=>{if(dead)return;if(i>=segs.length){dead=true;onDone();return;}const sg=segs[i++];
@@ -506,19 +522,19 @@ function speakPiper(b,cfg,onDone,id){
       const p=a.play();if(p&&p.catch)p.catch(fail);}).catch(fail);};
   next();
   return ()=>{dead=true;clearTimeout(timer);try{a.pause();a.onended=null;a.onerror=null;}catch(e){}if(stopper)stopper();};}
-function prefetchAhead(){if(!R.on)return;let n=0;for(let j=R.idx+1;j<R.queue.length&&n<2;j++){const b=R.queue[j];if(b.type==='line'&&readerOf(b)==='ai'){const id=piperVoiceOf(charCfg(b.who));if(id){const c=charCfg(b.who),pt=clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4);segments(b.text).forEach(sg=>{if(sg.say)piperSay(id,sg.say,pt).catch(()=>{});});}n++;}}}
+function prefetchAhead(){if(!R.on)return;let n=0;for(let j=R.idx+1;j<R.queue.length&&n<2;j++){const b=R.queue[j];if(b.type==='line'&&readerOf(b)==='ai'){const id=piperVoiceOf(charCfg(b.who));if(id){const c=charCfg(b.who),pt=isGoogle(id)?1:clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4);segments(b.text).forEach(sg=>{if(sg.say)piperSay(id,sg.say,pt).catch(()=>{});});}n++;}}}
 /* ---------- förbered rösterna: skapa ljud för alla AI-repliker i förväg ---------- */
 const PREP={running:false,cancel:false};
 function prepItems(blocks){const out=[],seen=new Set();for(const b of blocks){if(b.type!=='line'||!b.text||readerOf(b)!=='ai')continue;const c=charCfg(b.who),id=piperVoiceOf(c);if(!id)continue;
-  const pt=Math.round(clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4)*100)/100;for(const sg of segments(b.text)){if(!sg.say)continue;const k=id+'|'+pt+'|'+sg.say;if(seen.has(k))continue;seen.add(k);out.push({id,pt,text:sg.say});}}return out;}
-async function prepare(blocks,title){if(PREP.running)return;if(S.settings.piper===false){toast('Slå på AI-röster under Inställningar först.');return;}
+  const pt=isGoogle(id)?1:Math.round(clamp(variantOf(id).pitch*(c.pitch||1),.7,1.4)*100)/100;for(const sg of segments(b.text)){if(!sg.say)continue;const k=id+'|'+pt+'|'+sg.say;if(seen.has(k))continue;seen.add(k);out.push({id,pt,text:sg.say});}}return out;}
+async function prepare(blocks,title){if(PREP.running)return;
   const items=prepItems(blocks);if(!items.length){toast('Det finns inga AI-repliker att förbereda.');return;}
   PREP.running=true;PREP.cancel=false;closeSheet();const ov=$('#prep');ov.hidden=false;keepAwake(true);
   const show=(i,msg)=>{$('#prepT').textContent=title;$('#prepP').textContent=Math.floor(i/items.length*100)+' %';$('#prepBar').style.width=(i/items.length*100)+'%';$('#prepM').textContent=msg||`${i} av ${items.length} repliker klara`;};
   let done=0,fails=0;const t0=Date.now();show(0,'Laddar rösterna …');
-  try{for(const id of new Set(items.map(x=>baseOf(x.id)))){if(PREP.cancel)break;$('#prepM').textContent='Laddar rösten '+PIPER_BASE[id]+' …';await piperEnsure(id);}
+  try{for(const id of new Set(items.filter(x=>!isGoogle(x.id)).map(x=>baseOf(x.id)))){if(PREP.cancel)break;$('#prepM').textContent='Laddar rösten '+PIPER_BASE[id]+' …';await piperEnsure(id);}
     for(const it of items){if(PREP.cancel)break;const k=diskKey(it.id,it.pt,it.text);
-      if(!(await diskHas(k))){try{const blob=await piperSynth(it.id,it.text,it.pt);await diskPut(k,blob);}catch(e){fails++;}}
+      if(!(await diskHas(k))){try{await lineAudio(it.id,it.text,it.pt);}catch(e){fails++;if(fails===1)toast(String(e&&e.message||e).slice(0,140));}}
       done++;const left=done<items.length?Math.round((Date.now()-t0)/done*(items.length-done)/1000):0;show(done,`${done} av ${items.length} repliker klara`+(left>5?` · cirka ${left>90?Math.round(left/60)+' min':left+' s'} kvar`:''));}
   }catch(e){var err=e;}
   PREP.running=false;keepAwake(false);ov.hidden=true;
@@ -612,7 +628,7 @@ function startRehearsal(fromId,scene){
   unlockSpeech();piperUnlock();closeSheet();R.queue=q;
   let i=fromId?q.findIndex(b=>b.id===fromId):0;
   if(i<0){const all=S.script.blocks,k=all.findIndex(b=>b.id===fromId);i=0;for(let j=Math.max(0,k);j<all.length;j++){const qi=q.indexOf(all[j]);if(qi>=0){i=qi;break;}}}
-  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;S.script.blocks.forEach(x=>{if(x.mySpeak&&!x.mySpeakV2){delete x.mySpeak;}x.mySpeakV2=1;});if(S.settings.piper!==false){const ids=new Set(q.filter(b=>b.type==='line'&&readerOf(b)==='ai').map(b=>piperVoiceOf(charCfg(b.who))).filter(Boolean));[...ids].reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(()=>{}),Promise.resolve());}if(S.settings.useMic){VAD.state='idle';vadInit();}document.documentElement.classList.add('r-open');keepAwake(true);step();
+  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;S.script.blocks.forEach(x=>{if(x.mySpeak&&!x.mySpeakV2){delete x.mySpeak;}x.mySpeakV2=1;});if(S.settings.piper!==false){const ids=new Set(q.filter(b=>b.type==='line'&&readerOf(b)==='ai').map(b=>piperVoiceOf(charCfg(b.who))).filter(x=>x&&!isGoogle(x)).map(baseOf));[...ids].reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(()=>{}),Promise.resolve());}if(S.settings.useMic){VAD.state='idle';vadInit();}document.documentElement.classList.add('r-open');keepAwake(true);step();
 }
 function setStatus(text,p,lv){$('#rStatus').innerHTML=`<span>${esc(text)}${lv!=null?` <b class="lvl${lv>1?' on':''}"></b>`:''}</span>${p!=null?`<div class="meter"><i style="width:${Math.round(clamp(p,0,1)*100)}%"></i></div>`:''}`;}
 function stopCur(){clearTimeout(R.t);if(R.cancel){const c=R.cancel;R.cancel=null;try{c();}catch(e){}}}
@@ -827,6 +843,11 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <div><div class="kv"><span>Tempo för alla AI-röster</span><span id="tpv">${st.tempo.toFixed(2)}</span></div><input type="range" id="sTp" min=".7" max="1.3" step=".02" value="${st.tempo}" aria-label="Tempo för alla röster"></div>
 <label class="chk"><input type="checkbox" id="sMic"${st.useMic?' checked':''}>Lyssna med mikrofonen på mina repliker</label>
 <div><div class="kv"><span>Mikrofonens känslighet</span><span id="msv">${(st.micSens||1).toFixed(1)}</span></div><input type="range" id="sSens" min=".5" max="2.5" step=".1" value="${st.micSens||1}" aria-label="Mikrofonens känslighet"></div>
+<div class="gbox"><b>Google-röster</b>
+<label class="f" for="gKey">Nyckel från Google Cloud (API key)</label><input type="text" id="gKey" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…" value="${esc(st.gKey||'')}">
+<button type="button" class="primary" id="gTest">Spara och hämta svenska röster</button>
+<p class="note" id="gMsg">${(st.gVoices||[]).length?`${st.gVoices.length} svenska Google-röster finns i listan Röst under Roller.`:'Nyckeln sparas bara i den här telefonen.'}</p>
+<button type="button" class="ghost" id="gAssign"${(st.gVoices||[]).length?'':' hidden'}>Ge alla motspelare olika Google-röster</button></div>
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
 <p class="note">Nio svenska AI-röster som körs i telefonen: NST, Lisa och Alma, var och en i en vanlig, en mörk och en ljus variant. Varianterna av samma röst kostar ingen extra nedladdning. Varje röst är ungefär 60 MB och laddas ner första gången den används. Använd gärna bara en eller två röster, det sparar minne. Välj röst per roll under Roller. Gratis och fungerar utan internet efter nedladdningen.</p>
 <button type="button" class="ghost" id="sPiperLoad">Ladda ner rösterna som används nu</button>
@@ -840,11 +861,17 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 32 (Safari)</p>`;};
+<p class="note">Motläsaren version 33 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
   $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
+  $('#gTest',p).onclick=async()=>{st.gKey=$('#gKey',p).value.trim();save();const m=$('#gMsg',p);m.textContent='Kontrollerar nyckeln …';
+    try{const v=await googleVoices();st.gVoices=v;save();m.textContent=v.length?`Det fungerar. ${v.length} svenska röster hittades. Välj dem under Roller, eller tryck på knappen nedan.`:'Nyckeln fungerar men inga svenska röster hittades.';$('#gAssign',p).hidden=!v.length;}
+    catch(e){m.textContent='Det gick inte: '+(e&&e.message||e);}};
+  $('#gAssign',p).onclick=()=>{const v=st.gVoices||[];if(!v.length)return;const others=charList().filter(c=>!st.mine.includes(c.name));
+    const f=v.filter(x=>x.g==='FEMALE'),mm=v.filter(x=>x.g==='MALE');const pool=[];for(let i=0;i<Math.max(f.length,mm.length);i++){if(mm[i])pool.push(mm[i]);if(f[i])pool.push(f[i]);}
+    others.forEach((c,i)=>{ensureChar(c.name).voiceURI='google:'+(pool[i%pool.length]||v[0]).name;});save();toast('Klart. Ändra rösterna under Roller om du vill. Tryck sedan Förbered rösterna under Scener.');};
   $('#sPiper',p).onchange=e=>{st.piper=e.target.checked;save();};
   $('#sPiperLoad',p).onclick=()=>{const ids=[...new Set(charList().filter(c=>!S.settings.mine.includes(c.name)).map(c=>piperVoiceOf(charCfg(c.name))).filter(Boolean).map(baseOf))];ids.reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(e=>toast('Rösten '+PIPER_BASE[id]+' kunde inte laddas: '+(e&&e.message||e))),Promise.resolve()).then(()=>toast('Rösterna är klara.'));toast('Laddar ner '+ids.map(i=>PIPER_BASE[i]).join(' och ')+'. Det tar en stund första gången.');};
   $('#sPace',p).oninput=e=>{st.pace=+e.target.value;$('#pcv',p).textContent=paceLabel(st.pace);save();};
