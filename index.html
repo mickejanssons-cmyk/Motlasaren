@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0F0E11">
+<link rel="apple-touch-icon" href="icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Motläsaren</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Familjen+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: en black box-scen. Manuset som en kolumn i strålkastarljus; scenrubriker som filmklappor; fast "Repetera"-knapp nertill; repetitionen som en egen scen med transportknappar */
+:root{
+  --stage:#0F0E11; --wing:#18171B; --wing-2:#222026; --ink:#EEE8DE; --muted:#9C968E; --rule:#2C2930;
+  --spot:#F2B648; --spot-ink:#1A1206; --glow:rgba(242,182,72,.16); --curtain:#D2504A;
+  --hl:#F2B648; --hl-ink:#17110A; --scrim:rgba(0,0,0,.62); --danger:#FF8A7A;
+  --c1:#FF9B5E; --c2:#8FB0FF; --c3:#6EE19A; --c4:#CDA2FF; --c5:#F7CF5C; --c6:#4ED6EE; --c7:#FF85BE; --c8:#A9AFB9;
+  --f-display:"Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --f-ui:"Familjen Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-script:"Courier Prime", "Courier New", ui-monospace, monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --stage:#ECEEF1; --wing:#FFFFFF; --wing-2:#F4F5F7; --ink:#17161B; --muted:#5D5964; --rule:#D8D9DF;
+  --spot:#E5A33A; --spot-ink:#1A1206; --glow:rgba(229,163,58,.22); --curtain:#A8332D;
+  --hl:#FFD566; --hl-ink:#17110A; --scrim:rgba(20,20,26,.45); --danger:#B42318;
+  --c1:#C2410C; --c2:#2549C2; --c3:#15803D; --c4:#8B33E0; --c5:#9A5B05; --c6:#0E7490; --c7:#BE185D; --c8:#5B6370;
+  color-scheme:light}}
+:root[data-theme="light"]{
+  --stage:#ECEEF1; --wing:#FFFFFF; --wing-2:#F4F5F7; --ink:#17161B; --muted:#5D5964; --rule:#D8D9DF;
+  --spot:#E5A33A; --spot-ink:#1A1206; --glow:rgba(229,163,58,.22); --curtain:#A8332D;
+  --hl:#FFD566; --hl-ink:#17110A; --scrim:rgba(20,20,26,.45); --danger:#B42318;
+  --c1:#C2410C; --c2:#2549C2; --c3:#15803D; --c4:#8B33E0; --c5:#9A5B05; --c6:#0E7490; --c7:#BE185D; --c8:#5B6370;
+  color-scheme:light}
+
+*{box-sizing:border-box}
+html,body{background:var(--stage)}
+body{color:var(--ink);font-family:var(--f-ui);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-bottom:calc(104px + env(safe-area-inset-bottom,0px));
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--stage)}
+html.r-open body{overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--spot);outline-offset:2px}
+.wrap{max-width:680px;margin:0 auto}
+
+/* huvud */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--stage);padding-block:14px 12px;border-bottom:1px solid var(--rule)}
+.top-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{display:inline-block;font-family:var(--f-display);font-weight:800;font-size:28px;line-height:.9;letter-spacing:.04em;text-transform:uppercase}
+.logo i{font-style:normal;color:var(--spot)}
+.sub{display:block;color:var(--muted);font-size:13px;margin-top:6px;min-width:0;overflow-wrap:anywhere}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:var(--wing);border:1px solid var(--rule);border-radius:999px;padding:8px 13px;font-size:14px;font-weight:600}
+nav button:active{background:var(--wing-2)}
+.legend{margin:10px 0 0;font-size:13px;color:var(--muted)}
+.legend mark{background:var(--hl);color:var(--hl-ink);padding:0 .3em;border-radius:2px}
+
+.banner{margin:14px 0 0;padding:12px 14px;border:1px dashed var(--rule);border-radius:14px;font-size:14px;color:var(--muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--wing)}
+.banner button{background:var(--spot);color:var(--spot-ink);border:0;border-radius:999px;padding:7px 14px;font-weight:700}
+
+/* manus */
+#script{padding-block:6px 24px}
+.blk{padding:10px 0;scroll-margin-top:140px}
+.blk.head{padding-top:26px}
+.blk.head h2{margin:0;display:flex;align-items:center;gap:12px;font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:.05em;text-transform:uppercase;text-wrap:balance;line-height:1.05}
+.blk.head.scene{border-top:1px solid var(--rule);margin-top:14px;padding-top:14px}
+.blk.head.scene h2{font-size:20px}
+.blk.head.scene h2::before{content:"Scen";flex:none;font-family:var(--f-ui);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--spot);border:1px solid var(--spot);border-radius:4px;padding:2px 6px}
+.blk.head.act{padding-top:36px}
+.blk.head.act h2{font-size:38px;color:var(--ink)}
+.blk.dir p{margin:0;font-family:var(--f-script);font-style:italic;color:var(--muted);padding-left:2.2em;font-size:15px}
+.blk.line{cursor:pointer;border-radius:12px;padding:10px 10px;margin:0 -10px;transition:background .15s}
+.blk.line:active{background:var(--wing)}
+.who{display:flex;align-items:center;gap:8px;min-width:0}
+.nm{font-family:var(--f-script);font-weight:700;letter-spacing:.06em;color:var(--cc,var(--ink))}
+.tag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--rule);color:var(--muted)}
+.blk.me .tag{border-color:transparent;background:var(--hl);color:var(--hl-ink)}
+.ovr{font-size:12px;color:var(--muted)}
+.more{margin-left:auto;background:transparent;border:0;width:40px;height:32px;border-radius:8px;font-size:20px;line-height:1;color:var(--muted)}
+.txt{margin:5px 0 0;font-family:var(--f-script);font-size:17px;line-height:1.55;overflow-wrap:anywhere}
+mark{background:linear-gradient(transparent 8%,var(--hl) 8%,var(--hl) 92%,transparent 92%);color:var(--hl-ink);padding:0 .14em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.pd{color:var(--muted)}
+mark .pd{color:inherit;opacity:.7}
+.pz{display:inline-block;font-family:var(--f-ui);font-style:normal;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor;border-radius:4px;padding:0 5px;margin:0 2px;vertical-align:2px;color:var(--muted)}
+mark .pz{color:var(--hl-ink)}
+
+/* knapprad nertill */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:linear-gradient(transparent,var(--stage) 30%);
+  padding:22px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .wrap{display:flex;gap:8px}
+.primary{background:var(--spot);color:var(--spot-ink);border:0;border-radius:14px;min-height:54px;padding:0 18px;font-weight:700;font-size:17px;letter-spacing:.01em;box-shadow:0 8px 28px var(--glow)}
+.primary:active{transform:translateY(1px)}
+.ghost{background:var(--wing);border:1px solid var(--rule);border-radius:14px;min-height:48px;padding:0 14px;font-weight:600}
+.danger{background:transparent;border:1px solid var(--danger);color:var(--danger);border-radius:14px;min-height:48px;padding:0 14px;font-weight:600}
+.wide{width:100%}
+.bar .primary{flex:1;display:flex;align-items:center;justify-content:center;gap:10px}
+
+/* ark */
+#sheet{position:fixed;inset:0;z-index:40}
+#sheet .scrim{position:absolute;inset:0;background:var(--scrim)}
+#sheet .panel{position:absolute;left:0;right:0;bottom:0;max-height:88%;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--wing);border-radius:20px 20px 0 0;border-top:1px solid var(--rule);
+  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#sheet .panel::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:var(--rule);margin:0 auto 14px}
+.sheet-in{max-width:640px;margin:0 auto;display:grid;gap:14px}
+.sheet-in h3{margin:0;font-family:var(--f-display);font-weight:800;font-size:26px;letter-spacing:.05em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.x{background:var(--wing-2);border:1px solid var(--rule);border-radius:999px;padding:6px 13px;font-family:var(--f-ui);font-size:14px;font-weight:600;letter-spacing:0;text-transform:none}
+.note{margin:0;font-size:14px;color:var(--muted)}
+.warn{margin:0;font-size:14px;padding:10px 12px;border-radius:12px;background:var(--wing-2);border:1px solid var(--rule)}
+label.f{display:grid;gap:5px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+select,input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--stage);border:1px solid var(--rule);border-radius:12px;padding:11px 12px;width:100%}
+textarea{font-family:var(--f-script);line-height:1.45;resize:vertical}
+input[type=range]{width:100%;accent-color:var(--spot)}
+input[type=checkbox],input[type=radio]{accent-color:var(--spot);width:20px;height:20px;flex:none}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row > *{flex:1 1 140px}
+.chk{display:flex;align-items:center;gap:10px;font-size:16px;color:var(--ink)}
+.file{display:flex;align-items:center;justify-content:center;min-height:58px;border-radius:14px;background:var(--spot);color:var(--spot-ink);font-weight:700;font-size:17px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 8px 28px var(--glow)}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+details summary{cursor:pointer;font-weight:600;padding:6px 0}
+details[open] > *:not(summary){margin-top:8px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--stage)}
+.seg button{background:transparent;border:0;padding:10px 4px;font-size:14px;font-weight:600}
+.seg button + button{border-left:1px solid var(--rule)}
+.seg button.on{background:var(--spot);color:var(--spot-ink)}
+.role{border-top:1px solid var(--rule);padding-top:12px;display:grid;gap:10px}
+.role-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.role-h b{font-family:var(--f-script);letter-spacing:.06em}
+.cnt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.role-b{display:grid;gap:10px;padding-left:30px}
+.kv{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sc-act{font-family:var(--f-display);font-weight:800;font-size:20px;letter-spacing:.05em;text-transform:uppercase;margin-top:8px}
+.sc-row{display:flex;gap:8px;align-items:stretch}
+.sc-go{flex:1;min-width:0;text-align:left;background:var(--stage);border:1px solid var(--rule);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
+.sc-go b{font-weight:700;overflow-wrap:anywhere}
+.sc-row .primary{min-height:auto;font-size:15px;box-shadow:none}
+
+/* repetition */
+#rehearse{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;
+  background:radial-gradient(ellipse 90% 45% at 50% -10%,var(--glow),transparent 75%),var(--stage);
+  padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 14px) max(16px,env(safe-area-inset-left,0px))}
+.x.mic{display:inline-flex;align-items:center;gap:7px}
+.x.mic::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.x.mic.on::before{background:#3BD16F;box-shadow:0 0 0 3px rgba(59,209,111,.2)}
+.x.mic.off{color:var(--muted)}
+.r-top{display:flex;justify-content:space-between;align-items:center;gap:8px;max-width:680px;width:100%;margin:0 auto}
+#rCount{font-family:var(--f-script);font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;letter-spacing:.06em;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-dict{max-width:680px;width:100%;margin:8px auto 0;display:grid;gap:4px}
+.r-dict textarea{font-family:var(--f-ui);font-size:16px;padding:8px 10px;max-height:70px}
+.r-stage{cursor:pointer;flex:1;overflow:auto;display:flex;flex-direction:column;justify-content:center;gap:16px;max-width:680px;width:100%;margin:0 auto;padding-block:12px}
+.r-prev{font-family:var(--f-script);font-size:15px;color:var(--muted);line-height:1.45;min-height:1em;opacity:.85}
+.r-nm{font-family:var(--f-script);font-weight:700;letter-spacing:.08em;font-size:14px;text-transform:uppercase}
+.r-card{background:var(--wing);border:1px solid var(--rule);border-radius:20px;padding:20px;display:grid;gap:14px}
+.r-card.mine{border-color:var(--spot);box-shadow:0 0 0 1px var(--spot),0 18px 50px var(--glow)}
+.r-card.dir .r-txt{font-style:italic;color:var(--muted)}
+.r-txt{margin:0;font-family:var(--f-script);font-size:23px;line-height:1.45;overflow-wrap:anywhere}
+.r-txt.hint{letter-spacing:.06em;color:var(--muted)}
+.r-end{margin:0;font-family:var(--f-display);font-weight:800;font-size:30px;letter-spacing:.05em;text-transform:uppercase}
+#rStatus{min-height:44px;font-size:15px;color:var(--muted);display:grid;gap:8px}
+.meter{height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--spot);transition:width .2s}
+.r-ctrl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:440px;width:100%;margin:0 auto;align-items:end}
+.r-ctrl button{background:transparent;border:0;display:grid;justify-items:center;gap:6px;padding:4px 0;font-size:12px;font-weight:600;color:var(--muted)}
+.r-ctrl button .ic{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--wing);border:1px solid var(--rule);color:var(--ink)}
+.r-ctrl button.play .ic{width:66px;height:66px;background:var(--spot);border-color:var(--spot);color:var(--spot-ink);box-shadow:0 8px 28px var(--glow)}
+.r-ctrl svg{width:22px;height:22px}
+.r-ctrl button:active .ic{transform:scale(.96)}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:60;max-width:calc(100% - 32px);
+  background:var(--ink);color:var(--stage);padding:10px 14px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+@media (prefers-reduced-motion: reduce){.meter i,.blk.line{transition:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <div style="min-width:0"><span class="logo">Mot<i>läsaren</i></span><span class="sub" id="title"></span></div>
+      <nav>
+        <button type="button" data-open="import">Manus</button>
+        <button type="button" data-open="scenes">Scener</button>
+        <button type="button" data-open="roles">Roller</button>
+        <button type="button" data-open="settings">Inställningar</button>
+      </nav>
+    </div>
+    <p class="legend"><mark>Markerat</mark> = du läser själv. Tryck på en replik för att växla mellan dig och AI.</p>
+  </header>
+  <div id="exBanner" class="banner" hidden>Det här är ett exempelmanus. <button type="button" data-open="import">Lägg in ditt eget</button></div>
+  <div id="ttsBanner" class="banner" hidden>Den här vyn har ingen talsyntes, så AI:n kan inte läsa högt här.</div>
+  <main id="script"></main>
+</div>
+
+<div class="bar"><div class="wrap">
+  <button type="button" id="playFrom" class="primary">Repetera</button>
+  <button type="button" id="playStart" class="ghost">Från början</button>
+</div></div>
+
+<div id="rehearse" hidden>
+  <div class="r-top"><button type="button" class="x" id="rClose">Avsluta</button><button type="button" class="x mic" id="rMic">Mikrofon</button><span id="rCount"></span></div>
+  <textarea id="rIn" hidden aria-hidden="true" tabindex="-1"></textarea>
+  <div class="r-stage">
+    <div class="r-prev" id="rPrev"></div>
+    <div class="r-card" id="rCard"></div>
+    <div id="rStatus" aria-live="polite"></div>
+  </div>
+  <div class="r-ctrl">
+    <button type="button" id="rBack"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="2.6" height="14" rx="1"/><path d="M19 5.8v12.4a.8.8 0 0 1-1.2.7L9.4 12.7a.8.8 0 0 1 0-1.4l8.4-6.2a.8.8 0 0 1 1.2.7z"/></svg></span>Backa</button>
+    <button type="button" id="rRepeat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></span>Igen</button>
+    <button type="button" id="rPlay" class="play"></button>
+    <button type="button" id="rNext"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="16.4" y="5" width="2.6" height="14" rx="1"/><path d="M5 5.8v12.4a.8.8 0 0 0 1.2.7l8.4-6.2a.8.8 0 0 0 0-1.4L6.2 5.1A.8.8 0 0 0 5 5.8z"/></svg></span>Hoppa</button>
+  </div>
+</div>
+
+<div id="sheet" hidden><div class="scrim"></div><div class="panel" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(()=>{'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const median=a=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+const STORE='motlasaren.v1';
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+
+const EXAMPLE=`SCEN 1. Ett kök, tidig morgon.
+
+(VERA står vid fönstret med en kaffekopp. JONAS kommer in, håret på ända.)
+
+JONAS: Är det kaffe kvar?
+VERA: Det är alltid kaffe kvar. Det är det enda i det här huset som det alltid finns kvar av.
+JONAS: (trött) Du har varit uppe länge.
+VERA: Sedan fyra. (paus) Jag kunde inte sova.
+JONAS: Var det telefonen igen?
+VERA: Han ringde inte. Det var det som var problemet.
+(JONAS häller upp kaffe och ställer koppen framför henne.)
+JONAS: Han ringer. Han gör alltid det, till slut.
+VERA: (argt) Till slut! Jag är så trött på till slut!
+JONAS: Vera.
+VERA: (lågt) Förlåt. / Det är inte ditt fel.
+JONAS: Nej. Men jag är här. Det är väl något.
+VERA: (ler) Det är mycket, faktiskt.`;
+
+const TONES={
+  auto:{label:'Automatisk (efter scenanvisning)'},
+  neutral:{label:'Neutral',rate:1,pitch:1,vol:1},
+  varm:{label:'Varm',rate:.93,pitch:.96,vol:.9},
+  glad:{label:'Glad',rate:1.07,pitch:1.12,vol:1},
+  arg:{label:'Arg',rate:1.1,pitch:.9,vol:1},
+  ledsen:{label:'Ledsen',rate:.82,pitch:.9,vol:.8},
+  viskar:{label:'Viskande',rate:.88,pitch:1,vol:.45},
+  ropar:{label:'Ropar',rate:1.05,pitch:1.1,vol:1},
+  tveksam:{label:'Tveksam',rate:.84,pitch:1,vol:.85}
+};
+const TONE_WORDS=[['arg',/arg|ilsk|rasande|fräser|skarpt|irriter|vred/],['ledsen',/ledsen|ledset|gråt|snyft|sorgs|uppgiven|bruten/],['glad',/glad|glatt|skratt|förtjust|upprymd|\bler\b|leende|entusias/],['viskar',/viska|lågt|tyst|för sig själv/],['ropar',/ropa|skrik|vrål|högt/],['tveksam',/tvek|osäker|nervös|stamm|försiktig/],['varm',/varm|ömt|mjukt|kärleksfull|tröst/]];
+
+const defaults=()=>({mine:[],chars:{},shortPause:.6,longPause:1.6,useMic:true,dictation:false,fallback:'tap',v:2,hideMine:false,readDirs:false,narrator:{voiceURI:'',pitch:1,rate:1},tempo:1});
+let S={script:null,settings:defaults(),pos:null,example:false};
+function save(){try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){toast('Kunde inte spara i telefonen. Manuset kan vara för stort.');}}
+function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;const s=JSON.parse(raw);if(!s||!s.script||!Array.isArray(s.script.blocks))return false;S={...S,...s,settings:{...defaults(),...(s.settings||{})}};if((S.settings.v||1)<2){S.settings.fallback='tap';S.settings.v=2;}S.settings.dictation=false;return true;}catch(e){return false;}}
+
+/* ---------- roller ---------- */
+const findB=id=>S.script.blocks.find(b=>b.id===id);
+function charList(){const m=new Map();for(const b of S.script.blocks)if(b.type==='line'&&b.who)m.set(b.who,(m.get(b.who)||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}));}
+function ensureChar(name){if(!S.settings.chars[name]){const i=Object.keys(S.settings.chars).length;S.settings.chars[name]={voiceURI:'',pitch:[1,.88,1.12,.94,1.06,.82,1.18][i%7],rate:1};}return S.settings.chars[name];}
+function charIndex(name){ensureChar(name);return Object.keys(S.settings.chars).indexOf(name)%8+1;}
+function charCfg(name){const c=ensureChar(name);return {...c,idx:Object.keys(S.settings.chars).indexOf(name)};}
+const defaultReader=b=>S.settings.mine.includes(b.who)?'me':'ai';
+const readerOf=b=>b.reader||defaultReader(b);
+function prevWho(b){const bl=S.script.blocks;for(let i=bl.indexOf(b)-1;i>=0;i--)if(bl[i].type==='line'&&bl[i].who)return bl[i].who;return null;}
+
+/* ---------- text ---------- */
+function normalizePauses(t){return (' '+String(t||'')+' ').replace(/\(\s*kort\s+paus\s*\)/gi,' / ').replace(/\(\s*(?:lång\s+)?paus\s*\)|\(\s*tystnad\s*\)/gi,' // ').replace(/\s+/g,' ').trim();}
+function joinText(a,b){if(!a)return b;if(/\p{L}-$/u.test(a)&&/^\p{Ll}/u.test(b))return a.slice(0,-1)+b;return a+' '+b;}
+function fmt(text,mark){let h=' '+esc(normalizePauses(text))+' ';
+  h=h.replace(/\s\/\/(?=\s)/g,' <span class="pz">lång paus</span>').replace(/\s\/(?=\s)/g,' <span class="pz">paus</span>');
+  h=h.replace(/\(([^)]*)\)/g,'<i class="pd">($1)</i>').trim();
+  return mark?`<mark>${h}</mark>`:h;}
+function hintText(t){return normalizePauses(t).replace(/\([^)]*\)/g,' ').split(/\s+/).filter(Boolean).map(w=>w==='/'||w==='//'?w:(w.match(/\p{L}|\p{N}/u)||[''])[0]+'…').join(' ');}
+function segments(text){const st=S.settings,out=[];const t=' '+normalizePauses(text).replace(/\([^)]*\)|\[[^\]]*\]/g,' ')+' ';
+  for(const p of t.split(/(\s\/\/(?=\s)|\s\/(?=\s))/)){const q=(p||'').trim();if(q==='//')out.push({pause:st.longPause});else if(q==='/')out.push({pause:st.shortPause});else if(q&&/[\p{L}\p{N}]/u.test(q))out.push({say:q});}
+  return out;}
+function estSeconds(b){const segs=segments(b.text);let s=.8;for(const g of segs)s+=g.pause?g.pause:g.say.split(/\s+/).length/2.4;return s;}
+function lineTone(b){return TONES.neutral;if(b.tone&&b.tone!=='auto'&&TONES[b.tone])return TONES[b.tone];
+  const dirs=(b.text.match(/\(([^)]*)\)/g)||[]).join(' ').toLowerCase();
+  for(const [k,re] of TONE_WORDS)if(re.test(dirs))return TONES[k];
+  const t=b.text.trim();if(/!/.test(t))return {rate:1.05,pitch:1.06,vol:1};if(/(\.\.\.|…|–)$/.test(t))return {rate:.9,pitch:.98,vol:.9};
+  return TONES.neutral;}
+
+/* ---------- tolkning ---------- */
+const ACT_RE=/^(akt|akten|act)\s*([0-9ivx]+|ett|två|tre|fyra|fem|one|two|three)(?![\p{L}\d])|^(första|andra|tredje|fjärde|femte)\s+akten(?!\p{L})/iu;
+const SCENE_RES=[
+  /^(scen|scene|bild|tablå|nummer|nr\.?)\s*\d{1,3}[a-z]?([:.]\d{1,3}[a-z]?)?(?![\p{L}\d])/iu,
+  /^\d{1,2}[:.]\d{1,2}[a-z]?(\s*[.:–\-]?\s*\p{Lu}[^.!?]{0,50})?$/u,
+  /^\d{1,3}[a-z](\s*[.:–\-]?\s*\p{Lu}[^.!?]{0,50})?$/iu,
+  /^\d{1,3}\.\s+\p{Lu}[\p{L}\d ’'\-]{1,45}$/u,
+  /^(prolog|epilog|final|finalen|ouvertyr|uvertyr|entr'?acte)(?!\p{L})/iu,
+  /^\d+[a-z]?\.?\s*(int|ext)(?!\p{L})|^(int|ext)\.\s/iu];
+function headKind(s){s=String(s||'').trim();if(!s||s.length>=70)return null;if(ACT_RE.test(s))return 'act';return SCENE_RES.some(r=>r.test(s))?'scene':null;}
+const HEAD={test:s=>!!headKind(s)};
+const kindOf=b=>b.kind||headKind(b.text)||'scene';
+const MARKERS=/^\((mer|more|forts\.?|cont'?d)\)$|^\d+\s*(av|\/|of)\s*\d+$/i;
+const STOP=new Set(['AKT','SCEN','INT','EXT','SLUT','PAUS','RIDÅ','PROLOG','EPILOG','MUSIK','SÅNG','OBS','ANM','PERSONER','ROLLER','ROLLISTA','TID','PLATS','MÖRKER','MÖRKLÄGGNING','BLACKOUT','FADE IN','FADE OUT','CUT TO','SLUTET','THE END','INTERMISSION','FÖRSTA AKTEN','ANDRA AKTEN','TACK','ALLA','KÖR']);
+const FW=new Set(['DET','DU','JAG','VI','HAN','HON','ÄR','VAR','OCH','I','PÅ','EN','ETT','MEN','ATT','MIN','DIN','SKA','KAN','INTE','NU','DÅ','MED','TILL','AV','FÖR','OM','SÅ','HÄR','DÄR','VAD','NÄR','HUR','ALLT','MIG','DIG','OSS','DE','DEM','DÉ','THE','AND','OF','TO','YOU','IS','IT','MY','ME']);
+function cleanName(n){return String(n).replace(/\((forts\.?|cont'?d|v\.?\s?o\.?|voice[\s\-]?over|o\.?\s?s\.?|off|i telefon)\)/gi,'').replace(/[.:]+$/,'').replace(/\s+/g,' ').trim().toUpperCase();}
+const isCaps=s=>{const L=s.match(/\p{L}/gu)||[];if(L.length<3)return false;return L.filter(c=>c===c.toUpperCase()&&c!==c.toLowerCase()).length/L.length>.85;};
+function cand(l,allowSpace){const s=l.t.trim();let m;
+  m=s.match(/^(\p{Lu}[\p{L}0-9 .'’\-]{0,28}?)\s*(\([^)]*\))?\s*:\s*(.*)$/u);
+  if(m){const nm=m[1].trim();if(isCaps(nm)?nm.split(/\s+/).length<=4:/^\p{Lu}[\p{L}'’\-]*\.?(\s\p{Lu}[\p{L}'’\-]*\.?){0,2}$/u.test(nm))return {name:cleanName(nm),paren:m[2]||'',rest:m[3]||'',kind:'colon'};}
+  m=s.match(/^(\p{Lu}[\p{Lu}0-9 '’\-]{1,28})\s*(\([^)]*\))?\.\s+(\S.*)$/u);
+  if(m)return {name:cleanName(m[1]),paren:m[2]||'',rest:m[3],kind:'period'};
+  m=s.match(/^\((\p{Lu}[\p{Lu} .'’\-]{1,28})\)$/u);
+  if(m)return {name:cleanName(m[1]),paren:'',rest:'',kind:'alone'};
+  m=s.match(/^(\p{Lu}[\p{Lu}0-9 .'’\-]{1,28}?)\s*(\([^)]*\))?\s*[:.]?$/u);
+  if(m&&/\p{Lu}.*\p{Lu}/u.test(m[1]))return {name:cleanName(m[1]),paren:m[2]||'',rest:'',kind:'alone'};
+  if(allowSpace){m=s.match(/^(\p{Lu}{2,}(?:[ \-]\p{Lu}{2,}){0,2})\s+(\([^)]*\)\s*)?(\p{Lu}?\p{Ll}.*)$/u);
+    if(m)return {name:cleanName(m[1]),paren:(m[2]||'').trim(),rest:m[3],kind:'space'};}
+  return null;}
+const isCentered=l=>l.pw!=null&&Math.abs(l.cx-l.pw/2)<l.pw*.06;
+function parseLines(lines){
+  const hasX=lines.some(l=>l.x!=null);
+  const minX=hasX?Math.min(...lines.filter(l=>l.x!=null).map(l=>l.x)):0;
+  const fwOk=c=>c.kind==='colon'||!c.name.split(/\s+/).some(w=>FW.has(w));
+  // kräver centrerade namn om de flesta fristående namn är centrerade
+  let cen=0,tot=0;if(hasX)for(const l of lines){const c=cand(l,false);if(c&&c.kind==='alone'&&fwOk(c)){tot++;if(isCentered(l)&&l.x>minX+30)cen++;}}
+  const needCenter=tot>=4&&cen/tot>=.5;
+  const candOk=(l,allow)=>{const c=cand(l,allow);if(!c||!c.name||!fwOk(c))return null;if(needCenter&&c.kind==='alone'&&!(isCentered(l)&&l.x>minX+30))return null;return c;};
+  const okName=(counts,n)=>n&&(counts.get(n)||0)>=2&&!STOP.has(n)&&!HEAD.test(n)&&/\p{L}{2}/u.test(n)&&n.split(' ').length<=4;
+  const count=allow=>{const c=new Map();for(const l of lines){const x=candOk(l,allow);if(x)c.set(x.name,(c.get(x.name)||0)+1);}return c;};
+  let allow=false,counts=count(false),hits=0;for(const [n,c] of counts)if(okName(counts,n))hits+=c;
+  if(hits<5){allow=true;counts=count(true);}
+  const names=[...counts.keys()].filter(n=>okName(counts,n));
+  const isName=l=>{const c=candOk(l,allow);return c&&okName(counts,c.name)?c:null;};
+  // replikernas vänsterkant = vanligaste x för första raden efter ett rollnamn
+  let diaX=null;
+  if(hasX){const xs=new Map();for(let i=0;i<lines.length-1;i++)if(isName(lines[i])){const n=lines[i+1];if(!isName(n)&&n.x!=null){const k=Math.round(n.x/4)*4;xs.set(k,(xs.get(k)||0)+1);}}
+    let best=0;for(const [k,c] of xs)if(c>best){best=c;diaX=k;}}
+  const hasName=s=>names.some(n=>s.includes(n));
+  const blocks=[];let cur=null,lastWho=null;
+  const add=t=>{cur.text=joinText(cur.text,t);};
+  const newLine=who=>{cur={id:uid(),type:'line',who,text:'',reader:null,tone:'auto'};blocks.push(cur);};
+  const newDir=()=>{cur={id:uid(),type:'dir',text:'',reader:null};blocks.push(cur);};
+  for(let li=0;li<lines.length;li++){const l=lines[li];
+    const s=l.t.replace(/\s+/g,' ').trim();if(!s)continue;
+    if(/^\d{1,3}$/.test(s)&&l.gap&&lines[li+1]&&lines[li+1].gap){blocks.push({id:uid(),type:'head',kind:'scene',text:'Scen '+s});cur=null;continue;}
+    if(/^\d{1,4}\.?$/.test(s)||MARKERS.test(s))continue;
+    const c=isName(l);
+    if(c){newLine(c.name);lastWho=c.name;if(c.paren&&!/^\((v\.?\s?o\.?|voice[\s\-]?over|o\.?\s?s\.?|off|forts\.?|cont'?d)\)$/i.test(c.paren))add(c.paren);if(c.rest)add(c.rest);continue;}
+    const hk=headKind(s);if(hk){blocks.push({id:uid(),type:'head',kind:hk,text:s});cur=null;continue;}
+    const paren=/^[(\[]/.test(s),bigParen=paren&&(s.length>32||hasName(s));
+    if(hasX&&diaX!=null&&l.x!=null){
+      const atDia=Math.abs(l.x-diaX)<=12, lyric=l.x>diaX+12&&isCaps(s)&&!hasName(s.split(/\s+/)[0]);
+      if(paren&&!bigParen&&cur&&cur.type==='line'){add(s);continue;}
+      if((atDia||lyric)&&lastWho){
+        if(cur&&cur.type==='line'&&(!l.gap||!cur.text))add(s);else{newLine(lastWho);add(s);}
+        continue;}
+      if(cur&&cur.type==='dir'&&!l.gap){add(s);continue;}
+      newDir();add(s);continue;
+    }
+    if(cur&&cur.type==='line'&&(!l.gap||!cur.text)&&!bigParen){add(s);continue;}
+    if(cur&&cur.type==='dir'&&!l.gap){add(s);continue;}
+    newDir();add(s);
+  }
+  // samma person i olika åldrar, t.ex. "THOMAS SOM UNG" eller "UNGE THOMAS", blir samma roll
+  const all=new Set(blocks.filter(b=>b.type==='line').map(b=>b.who));
+  const AGE='UNG|UNGA|ÄLDRE|GAMMAL|VUXEN|BARN|LITEN|TONÅRING|PENSIONÄR|\\d+\\s*ÅR';
+  const baseOf=n=>{const g=n.match(new RegExp('^(.+?)\\s+SOM\\s+(?:'+AGE+')(?:\\s.*)?$'))||n.match(new RegExp('^(.+?)\\s*\\((?:'+AGE+')\\)$'));if(g)return g[1].trim();let m=n.match(/^(.+?)\s+SOM\s+.+$/)||n.match(/^(.+?)\s*\((UNG|UNGA|ÄLDRE|GAMMAL|VUXEN|BARN|\d+\s*ÅR)\)$/)||n.match(/^(?:UNGE|UNGA|LILLA|LILLE|GAMLE|GAMLA|ÄLDRE|VUXNE|VUXNA)\s+(.+)$/);return m&&all.has(m[1].trim())?m[1].trim():n;};
+  for(const b of blocks){if(b.type==='line')b.who=baseOf(b.who);b.text=normalizePauses(b.text);}
+  return blocks.filter(b=>b.text);
+}
+function parseText(t){const out=[];let gap=true;for(const l of String(t).split(/\r?\n/)){if(!l.trim()){gap=true;continue;}out.push({t:l,gap});gap=false;}return parseLines(out);}
+
+/* ---------- PDF (läses lokalt) ---------- */
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('PDF-läsaren kunde inte laddas. Kontrollera att telefonen är uppkopplad.'));document.head.appendChild(s);});}
+let pdfReady=null;
+function loadPdfJs(){if(!pdfReady)pdfReady=(async()=>{await loadScript(PDFJS+'pdf.min.js');await loadScript(PDFJS+'pdf.worker.min.js');const lib=window.pdfjsLib||window['pdfjs-dist/build/pdf'];lib.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.js';return lib;})().catch(e=>{pdfReady=null;throw e;});return pdfReady;}
+async function pdfToLines(buf,onProg){
+  const lib=await loadPdfJs();
+  const pdf=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;
+  const pages=[];let chars=0;
+  for(let p=1;p<=pdf.numPages;p++){
+    onProg(p,pdf.numPages);
+    const page=await pdf.getPage(p);const tc=await page.getTextContent();const rows=[];
+    for(const it of tc.items){if(typeof it.str!=='string'||!it.str.trim())continue;const tr=it.transform,y=tr[5],x=tr[4],h=Math.abs(tr[3])||it.height||10;
+      let r=null;for(const q of rows){if(Math.abs(q.y-y)<Math.max(2,h*.45)){r=q;break;}}
+      if(!r){r={y,items:[]};rows.push(r);}r.items.push({x,s:it.str,w:it.width||0});chars+=it.str.length;}
+    rows.sort((a,b)=>b.y-a.y);
+    const pw=(page.view&&page.view[2]-page.view[0])||595;
+    pages.push(rows.map(r=>{r.items.sort((a,b)=>a.x-b.x);let s='',end=null;const x0=r.items[0].x;for(const i of r.items){if(end!==null&&i.x-end>1.5&&!/\s$/.test(s)&&!/^\s/.test(i.s))s+=' ';s+=i.s;end=i.x+i.w;}return {t:s.replace(/\s+/g,' ').trim(),y:r.y,x:x0,cx:(x0+end)/2,pw};}).filter(l=>l.t));
+    if(page.cleanup)page.cleanup();
+  }
+  const key=t=>t.replace(/\d+/g,'#').toLowerCase();const cnt=new Map();
+  for(const ls of pages)new Set([...ls.slice(0,3),...ls.slice(-2)].map(l=>key(l.t))).forEach(k=>cnt.set(k,(cnt.get(k)||0)+1));
+  const lim=Math.max(3,pages.length*.3),out=[];
+  for(const ls of pages){const sp=[];for(let i=1;i<ls.length;i++){const d=ls[i-1].y-ls[i].y;if(d>0)sp.push(d);}const med=median(sp)||12;let prevY=null;
+    ls.forEach((l,i)=>{const edge=i<3||i>=ls.length-2;if(edge&&(cnt.get(key(l.t))||0)>=lim)return;out.push({t:l.t,gap:prevY!==null&&(prevY-l.y)>med*1.45,x:l.x,cx:l.cx,pw:l.pw});prevY=l.y;});}
+  return {lines:out,chars};
+}
+
+/* ---------- röster ---------- */
+const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+let voices=[];
+function refreshVoices(){if(hasTTS)try{voices=speechSynthesis.getVoices()||[];}catch(e){voices=[];}}
+const svVoices=()=>voices.filter(v=>/^sv/i.test(v.lang));
+function voiceFor(cfg){if(cfg&&cfg.voiceURI){const v=voices.find(v=>v.voiceURI===cfg.voiceURI);if(v)return v;}const sv=svVoices();return sv.length?sv[(cfg&&cfg.idx||0)%sv.length]:null;}
+function voiceOptions(sel){const sv=svVoices(),other=voices.filter(v=>!/^sv/i.test(v.lang));
+  const o=v=>`<option value="${esc(v.voiceURI)}"${v.voiceURI===sel?' selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`;
+  return `<option value="">Automatisk svensk röst</option>${sv.length?`<optgroup label="Svenska">${sv.map(o).join('')}</optgroup>`:''}${other.length?`<optgroup label="Andra språk">${other.map(o).join('')}</optgroup>`:''}`;}
+let unlocked=false;
+function unlockSpeech(){if(!hasTTS||unlocked)return;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);unlocked=true;}catch(e){}}
+function speakLine(b,cfg,onDone){
+  if(!hasTTS){const t=setTimeout(onDone,estSeconds(b)*1000);return ()=>clearTimeout(t);}
+  const segs=segments(b.text),tone=lineTone(b),v=voiceFor(cfg);
+  let i=0,dead=false,timer=null,wd=null;
+  const next=()=>{clearTimeout(wd);if(dead)return;if(i>=segs.length){dead=true;onDone();return;}const s=segs[i++];
+    if(s.pause){timer=setTimeout(next,s.pause*1000);return;}
+    const u=new SpeechSynthesisUtterance(s.say);if(v){u.voice=v;u.lang=v.lang;}else u.lang='sv-SE';
+    u.rate=clamp((cfg.rate||1)*(tone.rate||1)*(S.settings.tempo||1),.5,1.8);
+    u.pitch=clamp((cfg.pitch||1)*(tone.pitch||1),.1,2);u.volume=clamp(tone.vol??1,0,1);
+    let done=false;const fin=()=>{if(done)return;done=true;next();};
+    u.onend=fin;u.onerror=fin;wd=setTimeout(fin,(s.say.split(/\s+/).length/1.6/u.rate+4)*1000);
+    try{speechSynthesis.speak(u);}catch(e){fin();}};
+  next();
+  return ()=>{dead=true;clearTimeout(timer);clearTimeout(wd);try{speechSynthesis.cancel();}catch(e){}};
+}
+let previewStop=null;
+function preview(b,cfg){if(previewStop)previewStop();previewStop=speakLine(b,cfg,()=>{previewStop=null;});}
+
+/* ---------- mikrofon ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let micState=SR?'unknown':'missing';
+const norm=s=>String(s).toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g,' ').replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(Boolean);
+function lev(a,b){const d=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1;j<=b.length;j++)d[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];}
+function similar(a,b){if(a===b)return true;if(a.length>=4&&b.length>=4&&a.slice(0,4)===b.slice(0,4))return true;return lev(a,b)<=(a.length>5?2:1);}
+function matchCount(exp,heard){let j=0,m=0;for(let i=0;i<exp.length;i++){for(let k=j;k<Math.min(heard.length,j+6);k++){if(similar(exp[i],heard[k])){m++;j=k+1;break;}}}return m;}
+function endMatched(exp,heard){const n=exp.length;if(!n)return true;const k=Math.min(3,n),tail=exp.slice(n-k),h=heard.slice(-10);let j=0;
+  for(const w of tail){let f=-1;for(let q=j;q<h.length;q++)if(similar(w,h[q])){f=q;break;}if(f<0)return false;j=f+1;}return true;}
+function expected(text){const out=[];let pause=0;const t=' '+normalizePauses(text).replace(/\([^)]*\)|\[[^\]]*\]/g,' ')+' ';
+  for(const p of t.split(/(\s\/\/(?=\s)|\s\/(?=\s))/)){const q=(p||'').trim();if(q==='//'){pause+=S.settings.longPause;continue;}if(q==='/'){pause+=S.settings.shortPause;continue;}for(const w of norm(q)){out.push({w,pause});pause=0;}}
+  return out;}
+function listenFor(b,onDone,onFail,onProgress,onCmd){
+  if(!SR||!S.settings.useMic||micState==='denied')return null;
+  const exp=expected(b.text),n=exp.length,words=exp.map(x=>x.w);
+  let matched=0,last=Date.now(),dead=false,rec=null,heard=false,restarts=0,lastHeard=null,acc='',curTxt='';
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const kill=()=>{dead=true;clearInterval(iv);try{rec&&rec.abort();}catch(e){}};
+  const finish=()=>{if(dead)return;kill();onDone();};
+  const fail=why=>{micState='denied';kill();setTimeout(()=>onFail(why),0);};
+  const iv=setInterval(()=>{if(dead||!heard)return;const sil=(Date.now()-last)/1000,r=n?matched/n:1,extra=exp[matched]?exp[matched].pause:0;
+    if((matched>=n||(lastHeard&&endMatched(words,lastHeard)))&&r>=.5&&sil>.4+extra)finish();},200);
+  const start=()=>{try{rec=new SR();rec.lang='sv-SE';rec.continuous=!isIOS;curTxt='';rec.interimResults=true;
+    rec.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=' '+e.results[i][0].transcript;curTxt=t;const hw=norm(acc+' '+t);
+      if(onCmd&&hw.length){const c=hw[hw.length-1];if(c==='sufflera'&&!words.includes('sufflera')){onCmd('sufflera');}else if(matched===0&&hw.length<=2&&['nästa','hoppa','backa','igen'].includes(c)){kill();onCmd(c);return;}}
+      lastHeard=hw;const m=matchCount(words,hw);if(m>matched)matched=m;heard=true;restarts=0;last=Date.now();micState='ok';renderMic();onProgress(n?matched/n:1);};
+    rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error))fail(e.error);};
+    rec.onend=()=>{if(dead)return;acc+=' '+curTxt;curTxt='';if(++restarts>200){fail('stopp');return;}setTimeout(()=>{if(!dead)start();},150);};
+    rec.start();}catch(e){fail('start');}};
+  start();
+  return kill;
+}
+
+/* ---------- scener ---------- */
+function sections(){const bl=S.script.blocks,out=[];let act=null,actId=null,cur=null;
+  for(let i=0;i<bl.length;i++){const b=bl[i];
+    if(b.type==='head'){if(kindOf(b)==='act'){act=b.text;actId=b.id;cur=null;continue;}cur={id:b.id,title:b.text,act,start:i,lines:0,mine:0};out.push(cur);continue;}
+    if(!cur){cur={id:actId,title:act||'Början',act,start:i,lines:0,mine:0};out.push(cur);}
+    if(b.type==='line'){cur.lines++;if(readerOf(b)==='me')cur.mine++;}}
+  out.forEach((x,k)=>{x.end=k+1<out.length?out[k+1].start:bl.length;});
+  for(let k=0;k<out.length;k++){const n=bl.slice(out[k].start,out[k].end).findIndex((b,j)=>j>0&&b.type==='head');if(n>0)out[k].end=out[k].start+n;}
+  return out.filter(x=>x.lines>0);}
+function sectionOf(id){const bl=S.script.blocks,i=bl.findIndex(b=>b.id===id);return sections().find(x=>i>=x.start&&i<x.end)||null;}
+
+/* ---------- iPhone-diktering ---------- */
+const D={base:0,tok:-1,timer:null,b:null,onDone:null,onCmd:null,onProg:null};
+const dictOn=()=>S.settings.dictation&&document.activeElement===$('#rIn');
+function dictListen(b,tok,onDone,onProg,onCmd){const inp=$('#rIn');D.base=inp.value.length;D.tok=tok;D.b=b;D.onDone=onDone;D.onProg=onProg;D.onCmd=onCmd;clearTimeout(D.timer);
+  return ()=>{D.tok=-1;clearTimeout(D.timer);};}
+function dictInput(){if(D.tok!==R.tok||!D.b)return;const inp=$('#rIn');if(inp.value.length<D.base)D.base=0;
+  const hw=norm(inp.value.slice(D.base)),exp=expected(D.b.text),words=exp.map(x=>x.w),n=words.length;
+  if(hw.length&&hw[hw.length-1]==='sufflera'){D.onCmd('sufflera');}
+  if(hw.length&&hw.length<=1&&['nästa','hoppa','backa','igen'].includes(hw[0])){const c=hw[0];D.tok=-1;D.timer=setTimeout(()=>D.onCmd(c),400);return;}
+  const m=matchCount(words,hw),r=n?m/n:1;D.onProg(r);clearTimeout(D.timer);
+  const tok=D.tok;
+  if((m>=n||endMatched(words,hw))&&r>=.5)D.timer=setTimeout(()=>{if(D.tok===tok){D.tok=-1;D.onDone();}},500);
+}
+$('#rIn').addEventListener('input',dictInput);
+$('#rIn').addEventListener('click',e=>e.stopPropagation());
+$('#rIn').addEventListener('focus',()=>{const b=R.queue[R.idx];if(R.on&&b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)step();});
+
+/* ---------- repetition ---------- */
+const R={on:false,idx:0,queue:[],cancel:null,t:null,paused:false,tok:0,reveal:false};
+let wl=null;
+async function keepAwake(on){try{if(on&&navigator.wakeLock)wl=await navigator.wakeLock.request('screen');else if(!on&&wl){await wl.release();wl=null;}}catch(e){}}
+function startRehearsal(fromId,scene){
+  R.scene=scene||null;
+  const src=scene?S.script.blocks.slice(scene.start,scene.end):S.script.blocks;
+  const q=src.filter(b=>b.text&&(b.type==='line'||(b.type==='dir'&&S.settings.readDirs)));
+  if(!q.some(b=>b.type==='line')){toast('Det finns inga repliker att repetera.');return;}
+  if(!S.settings.mine.length&&!S.script.blocks.some(b=>b.reader==='me')){openSheet('roles');toast('Bocka för din roll först.');return;}
+  unlockSpeech();closeSheet();R.queue=q;
+  let i=fromId?q.findIndex(b=>b.id===fromId):0;
+  if(i<0){const all=S.script.blocks,k=all.findIndex(b=>b.id===fromId);i=0;for(let j=Math.max(0,k);j<all.length;j++){const qi=q.indexOf(all[j]);if(qi>=0){i=qi;break;}}}
+  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;document.documentElement.classList.add('r-open');keepAwake(true);step();
+}
+function setStatus(text,p){$('#rStatus').innerHTML=`<span>${esc(text)}</span>${p!=null?`<div class="meter"><i style="width:${Math.round(clamp(p,0,1)*100)}%"></i></div>`:''}`;}
+function stopCur(){clearTimeout(R.t);if(R.cancel){const c=R.cancel;R.cancel=null;try{c();}catch(e){}}}
+function advance(){stopCur();R.idx++;step();}
+function step(){
+  stopCur();const tok=++R.tok;R.reveal=false;R.hintN=0;renderR();
+  if(R.idx>=R.queue.length){setStatus(R.scene?'Slut på scenen.':'Slut på manuset.');return;}
+  const b=R.queue[R.idx];S.pos=b.id;save();
+  if(R.paused){setStatus('Pausad. Tryck Fortsätt.');return;}
+  const go=()=>{if(tok!==R.tok)return;R.t=setTimeout(()=>{if(tok===R.tok)advance();},280);};
+  if(b.type==='dir'){setStatus('Scenanvisning');R.cancel=speakLine(b,{...S.settings.narrator,idx:0},go);return;}
+  if(readerOf(b)==='ai'){setStatus(`AI läser ${b.who}`);R.cancel=speakLine(b,charCfg(b.who),go);return;}
+  R.mineStart=Date.now();
+  const fallback=()=>{if(tok!==R.tok)return;R.mineStart=Date.now();
+    setStatus('Din tur. Ta den tid du behöver och tryck på skärmen när du är klar.');};
+  const cmd=c=>{if(tok!==R.tok)return;if(c==='sufflera'){prompter();return;}R.cancel=null;if(c==='backa')$('#rBack').onclick();else if(c==='igen')step();else advance();};
+  const prog=p=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar…',p);};
+  if(micState==='denied'||micState==='missing'||!S.settings.useMic){if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}}
+  const kill=listenFor(b,()=>{if(tok===R.tok)advance();},()=>{if(tok!==R.tok)return;R.cancel=null;if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}renderMic();toast('Mikrofonen är spärrad här i Claude. Tryck på skärmen när du är klar.');fallback();},prog,cmd);
+  if(kill){R.cancel=kill;setStatus('Din tur. Jag lyssnar…',0);}else fallback();
+}
+function prompter(){const b=R.queue[R.idx];if(!b)return;R.hintN=(R.hintN||0)+3;R.reveal=false;renderR();}
+function partialHint(t,n){const ws=normalizePauses(t).replace(/\([^)]*\)/g,' ').split(/\s+/).filter(w=>w&&w!=='/'&&w!=='//');return ws.map((w,i)=>i<n?w:(w.match(/\p{L}|\p{N}/u)||[''])[0]+'…').join(' ');}
+function renderMic(){const m=$('#rMic');const on=S.settings.useMic&&micState==='ok',off=!S.settings.useMic||micState==='denied'||micState==='missing';
+  m.classList.toggle('on',on);m.classList.toggle('off',off);m.textContent=on?'Mikrofon på':off?(S.settings.useMic?'Mikrofon spärrad':'Mikrofon av'):'Mikrofon';}
+$('#rMic').onclick=e=>{e.stopPropagation();
+  if(S.settings.useMic&&micState==='ok'){S.settings.useMic=false;save();renderMic();step();return;}
+  S.settings.useMic=true;save();if(micState==='denied')micState=SR?'unknown':'missing';
+  if(!SR){micState='missing';renderMic();toast('Mikrofonen går inte att använda här i Claude. Öppna appen i Safari så fungerar den.');return;}
+  const b=R.queue[R.idx];if(b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)step();
+  else{try{const t=new SR();t.lang='sv-SE';t.onerror=ev=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(ev.error)){micState='denied';renderMic();toast('Mikrofonen är spärrad här i Claude. Öppna appen i Safari så fungerar den.');}};t.onstart=()=>{micState='ok';renderMic();try{t.abort();}catch(x){}};t.start();}catch(x){micState='denied';renderMic();}}
+  renderMic();};
+function renderR(){renderMic();
+  const q=R.queue,b=q[R.idx],p=q[R.idx-1];
+  $('#rCount').textContent=`${R.scene?R.scene.title+' · ':''}${String(Math.min(R.idx+1,q.length)).padStart(2,'0')} / ${String(q.length).padStart(2,'0')}`;
+  $('#rPlay').innerHTML=R.paused?'<span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.6v12.8a.9.9 0 0 0 1.4.7l9.6-6.4a.9.9 0 0 0 0-1.5L9.4 4.9A.9.9 0 0 0 8 5.6z"/></svg></span>Fortsätt':'<span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg></span>Paus';
+  const col=x=>x.type==='line'?`var(--c${charIndex(x.who)})`:'var(--c8)';
+  $('#rPrev').innerHTML=p?`<span class="r-nm" style="color:${col(p)}">${esc(p.type==='line'?p.who:'Anvisning')}</span> ${fmt(p.text)}`:'';
+  const card=$('#rCard');
+  if(!b){card.className='r-card';let nx=null;if(R.scene){const ss=sections(),k=ss.findIndex(x=>x.start===R.scene.start);nx=k>=0?ss[k+1]:null;}
+    card.innerHTML=`<p class="r-end">${R.scene?'Slut på scenen.':'Slut på manuset.'}</p><button type="button" class="primary wide" data-act="restart">${R.scene?'Ta scenen igen':'Börja om från början'}</button>${nx?`<button type="button" class="ghost wide" data-act="nextscene">Nästa: ${esc(nx.title)}</button>`:''}`;return;}
+  const mine=b.type==='line'&&readerOf(b)==='me';
+  card.className='r-card '+(b.type==='dir'?'dir':mine?'mine':'ai');
+  const label=b.type==='dir'?'Scenanvisning':esc(b.who)+(mine?' · du':'');
+  const body=mine&&S.settings.hideMine&&!R.reveal?`<p class="r-txt hint">${esc(partialHint(b.text,R.hintN||0))}</p><div class="row"><button type="button" class="ghost" data-act="prompt">Sufflera</button><button type="button" class="ghost" data-act="reveal">Visa hela</button></div>`:`<p class="r-txt">${fmt(b.text,mine)}</p>`;
+  card.innerHTML=`<div class="r-nm" style="color:${col(b)}">${label}</div>${body}`;
+}
+function endRehearsal(){try{$('#rIn').blur();}catch(e){}R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}R.on=false;$('#rehearse').hidden=true;document.documentElement.classList.remove('r-open');keepAwake(false);renderBar();
+  const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
+function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
+$('#rClose').onclick=endRehearsal;
+$('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){b.myTime=Math.min(90,(b.myTime||estSeconds(b))*1.4);save();toast('Du får mer tid på den repliken.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
+$('#rRepeat').onclick=()=>{R.paused=false;step();};
+$('#rPlay').onclick=togglePause;
+$('#rNext').onclick=()=>{if(R.idx<R.queue.length){R.paused=false;advance();}};
+function tapDone(){const b=R.queue[R.idx];if(!b||R.paused||b.type!=='line'||readerOf(b)!=='me')return;
+  const el=(Date.now()-R.mineStart)/1000;if(S.settings.fallback==='timer'&&micState!=='ok'&&el>.6)b.myTime=clamp(el+.3,.8,90);R.autoAt=null;advance();}
+document.querySelector('.r-stage').onclick=e=>{if(e.target.closest('[data-act]'))return;tapDone();};
+$('#rCard').onclick=e=>{const a=e.target.closest('[data-act]');if(!a)return;const act=a.dataset.act;
+  if(false){}else if(act==='reveal'){R.reveal=true;renderR();}else if(act==='prompt'){prompter();}else if(act==='restart'){R.idx=0;R.paused=false;step();}
+  else if(act==='nextscene'){const ss=sections(),k=ss.findIndex(x=>x.start===R.scene.start);if(ss[k+1])startRehearsal(null,ss[k+1]);}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&R.on&&!R.paused)togglePause();});
+
+/* ---------- manusvy ---------- */
+function blockHTML(b){
+  if(b.type==='head')return `<div class="blk head ${kindOf(b)}" data-id="${b.id}"><h2>${esc(b.text)}</h2></div>`;
+  if(b.type==='dir')return `<div class="blk dir" data-id="${b.id}"><p>${fmt(b.text)}</p></div>`;
+  const r=readerOf(b);
+  return `<div class="blk line ${r}" data-id="${b.id}" style="--cc:var(--c${charIndex(b.who)})"><div class="who"><span class="nm">${esc(b.who||'?')}</span><span class="tag">${r==='me'?'Du läser':'AI läser'}</span>${b.reader?'<span class="ovr">ändrad</span>':''}<button class="more" type="button" aria-label="Redigera repliken">⋯</button></div><p class="txt">${fmt(b.text,r==='me')}</p></div>`;
+}
+function renderScript(){$('#script').innerHTML=S.script.blocks.map(blockHTML).join('');}
+function renderBar(){const q=S.script.blocks.filter(b=>b.type==='line');const i=q.findIndex(b=>b.id===S.pos);
+  $('#playFrom').textContent=i>0?`Fortsätt från replik ${i+1}`:'Repetera';$('#playStart').hidden=!(i>0);}
+function renderAll(){$('#title').textContent=S.script.title||'';$('#exBanner').hidden=!S.example;$('#ttsBanner').hidden=hasTTS;renderScript();renderBar();}
+$('#script').onclick=e=>{const el=e.target.closest('.blk');if(!el)return;const b=findB(el.dataset.id);if(!b)return;
+  if(e.target.closest('.more')||b.type!=='line'){openSheet('edit',b.id);return;}
+  const now=readerOf(b)==='ai'?'me':'ai';b.reader=now===defaultReader(b)?null:now;save();
+  el.outerHTML=blockHTML(b);toast(now==='me'?`Du läser ${b.who} här.`:`AI läser ${b.who} här.`);};
+$('#playFrom').onclick=()=>{const b=S.pos&&findB(S.pos);startRehearsal(b?b.id:null);};
+$('#playStart').onclick=()=>startRehearsal(null);
+document.querySelectorAll('[data-open]').forEach(btn=>btn.onclick=()=>openSheet(btn.dataset.open));
+
+/* ---------- ark ---------- */
+let sheetKind=null,sheetArg=null;
+const BUILD={},BIND={};
+function openSheet(kind,arg,keep){sheetKind=kind;sheetArg=arg;const p=$('#sheet .panel');const st=p.scrollTop;p.innerHTML=`<div class="sheet-in">${BUILD[kind](arg)}</div>`;$('#sheet').hidden=false;p.scrollTop=keep?st:0;
+  const x=p.querySelector('.x');if(x)x.onclick=closeSheet;if(BIND[kind])BIND[kind](arg,p);}
+function closeSheet(){if($('#sheet').hidden)return;if(previewStop){previewStop();previewStop=null;}$('#sheet').hidden=true;sheetKind=null;save();renderScript();renderBar();}
+$('#sheet .scrim').onclick=closeSheet;
+
+BUILD.import=()=>`<h3>Lägg in manus <button type="button" class="x">Stäng</button></h3>
+<p class="note">Filen läses här i telefonen och skickas inte någonstans. Manuset sparas bara i den här telefonen.</p>
+<label class="file"><input type="file" id="fPdf" accept="application/pdf,.pdf,.txt,text/plain">Välj PDF eller textfil</label>
+<p class="note" id="impProg" aria-live="polite"></p>
+<details><summary>Klistra in text i stället</summary>
+<label class="f" for="pasteTxt">Manustext</label><textarea id="pasteTxt" rows="8" placeholder="ALF: Hej, är det någon här?"></textarea>
+<button type="button" id="pasteGo" class="primary wide">Tolka texten</button></details>
+<p class="note">Appen känner igen rollnamn som skrivs före repliken, till exempel <b>ALF:</b> eller <b>ALF</b> på egen rad. Scenanvisningar inom parentes läses inte upp. Blir något fel kan du trycka på raden och rätta den.</p>
+<button type="button" id="loadEx" class="ghost">Ladda exempelmanuset</button>`;
+BIND.import=(_,p)=>{
+  $('#fPdf',p).onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const prog=$('#impProg',p);const title=f.name.replace(/\.(pdf|txt)$/i,'');
+    try{if(/\.txt$/i.test(f.name)||f.type==='text/plain'){applyParsed(parseText(await f.text()),title);return;}
+      prog.textContent='Öppnar PDF:en…';const {lines,chars}=await pdfToLines(await f.arrayBuffer(),(a,n)=>{prog.textContent=`Läser sida ${a} av ${n}…`;});
+      if(chars<40){prog.textContent='PDF:en verkar vara inskannad, alltså bilder utan text. Den går inte att läsa här. Prova en PDF med riktig text, eller klistra in texten.';return;}
+      applyParsed(parseLines(lines),title);
+    }catch(err){prog.textContent='Kunde inte läsa filen. '+(err&&err.message?err.message:'');}};
+  $('#pasteGo',p).onclick=()=>{const t=$('#pasteTxt',p).value;if(!t.trim()){toast('Klistra in text först.');return;}applyParsed(parseText(t),'Inklistrat manus');};
+  $('#loadEx',p).onclick=()=>applyParsed(parseText(EXAMPLE),'Exempel: Kaffet',true);
+};
+function applyParsed(blocks,title,isEx){
+  const lines=blocks.filter(b=>b.type==='line');
+  if(!lines.length){const msg='Hittade inga rollnamn. Varje replik behöver börja med rollnamnet, till exempel "ALF: Hej" eller ALF på egen rad.';const pr=$('#impProg');if(pr&&!$('#sheet').hidden)pr.textContent=msg;else toast(msg);return false;}
+  S.script={title,blocks};S.settings.chars={};S.settings.mine=isEx?['JONAS']:[];S.pos=null;S.example=!!isEx;
+  charList().forEach(c=>ensureChar(c.name));save();renderAll();window.scrollTo(0,0);
+  if(isEx){closeSheet();toast('Exemplet är laddat. Du läser JONAS.');}
+  else{openSheet('roles');toast(`Hittade ${charList().length} roller och ${lines.length} repliker. Bocka för din roll.`);}
+  return true;
+}
+
+BUILD.scenes=()=>{const ss=sections();let lastAct='__';const rows=ss.map((x,k)=>{let h='';if(x.act!==lastAct&&x.act){h=`<div class="sc-act">${esc(x.act)}</div>`;}lastAct=x.act;
+    return h+`<div class="sc-row"><button type="button" class="sc-go" data-k="${k}"><b>${esc(x.title)}</b><span class="cnt">${x.lines} repliker · ${x.mine} dina</span></button><button type="button" class="primary" data-play="${k}">Repetera</button></div>`;}).join('');
+  return `<h3>Scener <button type="button" class="x">Stäng</button></h3>
+<p class="note">Scenerna hittas automatiskt, till exempel AKT 2, Scen 3, 1:2, 2:1, 1A, 1b och "4. Titel". Saknas en scen: tryck på raden där den börjar, välj ⋯ och "Ny scen börjar här".</p>
+${ss.length>1?'':'<p class="warn">Hittade inga scenrubriker i det här manuset.</p>'}
+${rows}
+<button type="button" class="ghost" id="scAll">Repetera hela manuset</button>`;};
+BIND.scenes=(_,p)=>{const ss=sections();
+  p.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const x=ss[+b.dataset.k];closeSheet();const bl=S.script.blocks[x.start];const el=bl&&document.querySelector(`[data-id="${bl.id}"]`);const hd=x.id&&document.querySelector(`[data-id="${x.id}"]`);(hd||el)&&(hd||el).scrollIntoView({block:'start'});});
+  p.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>startRehearsal(null,ss[+b.dataset.play]));
+  $('#scAll',p).onclick=()=>startRehearsal(null);};
+BUILD.roles=()=>{const cs=charList();const sv=svVoices();
+  return `<h3>Roller och röster <button type="button" class="x">Klar</button></h3>
+<p class="note">Bocka för din roll. AI:n läser alla andra. Du kan också trycka på enskilda repliker i manuset för att byta.</p>
+${hasTTS&&!sv.length?'<p class="warn">Hittar ingen svensk röst i telefonen just nu. Rösterna kan ta en stund att dyka upp första gången.</p>':''}
+${cs.map((c,i)=>{const cfg=ensureChar(c.name),mine=S.settings.mine.includes(c.name);
+  return `<div class="role" data-name="${esc(c.name)}">
+  <div class="role-h"><label class="chk"><input type="checkbox" id="mine-${i}" class="mineChk"${mine?' checked':''}><b style="color:var(--c${charIndex(c.name)})">${esc(c.name)}</b></label><span class="cnt">${c.count} repliker</span></div>
+  <div class="role-b"${mine?' hidden':''}>
+    <label class="f" for="v-${i}">Röst</label><select id="v-${i}" class="vSel">${voiceOptions(cfg.voiceURI)}</select>
+    <div><div class="kv"><span>Tonhöjd</span><span class="pv">${cfg.pitch.toFixed(2)}</span></div><input type="range" id="p-${i}" class="pSl" min=".5" max="1.6" step=".02" value="${cfg.pitch}" aria-label="Tonhöjd"></div>
+    <div><div class="kv"><span>Tempo</span><span class="rv">${cfg.rate.toFixed(2)}</span></div><input type="range" id="r-${i}" class="rSl" min=".6" max="1.4" step=".02" value="${cfg.rate}" aria-label="Tempo"></div>
+    <div class="row"><button type="button" class="ghost test">Provlyssna</button>
+    <select id="m-${i}" class="merge" aria-label="Slå ihop med annan roll"><option value="">Slå ihop med…</option>${cs.filter(o=>o.name!==c.name).map(o=>`<option value="${esc(o.name)}">${esc(o.name)}</option>`).join('')}</select></div>
+  </div></div>`;}).join('')}
+<p class="note">Fler svenska röster: öppna Inställningar i iPhone, gå till Tillgänglighet, Uppläst innehåll, Röster, Svenska och ladda ner en röst. Starta sedan om appen.</p>`;};
+BIND.roles=(_,p)=>{p.querySelectorAll('.role').forEach(row=>{const name=row.dataset.name,c=ensureChar(name);
+  row.querySelector('.mineChk').onchange=e=>{const m=new Set(S.settings.mine);e.target.checked?m.add(name):m.delete(name);S.settings.mine=[...m];save();row.querySelector('.role-b').hidden=e.target.checked;};
+  row.querySelector('.vSel').onchange=e=>{c.voiceURI=e.target.value;save();};
+  row.querySelector('.pSl').oninput=e=>{c.pitch=+e.target.value;row.querySelector('.pv').textContent=c.pitch.toFixed(2);save();};
+  row.querySelector('.rSl').oninput=e=>{c.rate=+e.target.value;row.querySelector('.rv').textContent=c.rate.toFixed(2);save();};
+  row.querySelector('.test').onclick=()=>{const first=S.script.blocks.find(b=>b.type==='line'&&b.who===name);preview(first||{text:'Hej, det här är min röst.',tone:'auto'},charCfg(name));};
+  row.querySelector('.merge').onchange=e=>{const to=e.target.value;if(!to)return;S.script.blocks.forEach(b=>{if(b.who===name)b.who=to;});delete S.settings.chars[name];S.settings.mine=S.settings.mine.filter(n=>n!==name);save();openSheet('roles',null,true);toast(`${name} är ihopslagen med ${to}.`);};
+});};
+
+BUILD.edit=id=>{const b=findB(id);if(!b)return '<p class="note">Raden finns inte längre.</p><button type="button" class="x">Stäng</button>';
+  const names=charList().map(c=>c.name);
+  return `<h3>Redigera rad <button type="button" class="x">Klar</button></h3>
+<div class="seg" role="group" aria-label="Typ av rad">${[['line','Replik'],['dir','Anvisning'],['head','Rubrik']].map(([t,l])=>`<button type="button" data-type="${t}" class="${b.type===t?'on':''}">${l}</button>`).join('')}</div>
+${b.type==='line'?`<label class="f" for="eWho">Roll</label><input type="text" id="eWho" list="whoList" value="${esc(b.who||'')}" autocapitalize="characters" autocomplete="off"><datalist id="whoList">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+<label class="f" for="eReader">Läses av</label><select id="eReader"><option value=""${!b.reader?' selected':''}>Automatiskt (${defaultReader(b)==='me'?'du':'AI'})</option><option value="ai"${b.reader==='ai'?' selected':''}>AI</option><option value="me"${b.reader==='me'?' selected':''}>Jag själv</option></select>`:''}
+${b.type==='head'?`<label class="f" for="eKind">Typ av rubrik</label><select id="eKind"><option value="scene"${kindOf(b)==='scene'?' selected':''}>Scen</option><option value="act"${kindOf(b)==='act'?' selected':''}>Akt</option></select>`:''}
+<label class="f" for="eText">Text</label><textarea id="eText" rows="${b.type==='head'?2:6}">${esc(b.text)}</textarea>
+<div class="row"><button type="button" class="ghost" id="ePs">+ Kort paus</button><button type="button" class="ghost" id="ePl">+ Lång paus</button></div>
+<p class="note">Pausen hamnar där markören står och visas som / (kort) eller // (lång). AI:n stannar där. </p>
+
+${b.type==='head'?`<button type="button" class="primary" id="eScene">Repetera den här scenen</button>`:`<div class="row"><button type="button" class="ghost" id="eTest">Provlyssna</button><button type="button" class="primary" id="eStart">Repetera härifrån</button></div>
+<button type="button" class="ghost" id="eNewScene">Ny scen börjar här</button>`}
+<div class="row"><button type="button" class="ghost" id="eMerge">Slå ihop med raden ovanför</button><button type="button" class="danger" id="eDel">Ta bort raden</button></div>`;};
+BIND.edit=(id,p)=>{const b=findB(id);if(!b)return;
+  p.querySelectorAll('[data-type]').forEach(btn=>btn.onclick=()=>{b.type=btn.dataset.type;if(b.type==='head')b.kind=headKind(b.text)||'scene';if(b.type==='line'&&!b.who){b.who=prevWho(b)||(charList()[0]||{}).name||'ROLL';b.reader=null;b.tone='auto';}save();openSheet('edit',id,true);});
+  const who=$('#eWho',p);if(who)who.onchange=()=>{const n=cleanName(who.value);if(n){b.who=n;ensureChar(n);save();openSheet('edit',id,true);}};
+  const rd=$('#eReader',p);if(rd)rd.onchange=e=>{b.reader=e.target.value||null;save();};
+  const tn=$('#eTone',p);if(tn)tn.onchange=e=>{b.tone=e.target.value;save();};
+  const ta=$('#eText',p);ta.oninput=()=>{b.text=ta.value;save();};
+  const ins=m=>{const v=ta.value,s=ta.selectionStart??v.length,e=ta.selectionEnd??s;const before=v.slice(0,s).replace(/\s+$/,''),after=v.slice(e).replace(/^\s+/,'');
+    ta.value=(before+' '+m+' '+after).trim();const pos=Math.min(ta.value.length,(before+' '+m+' ').length);b.text=ta.value;save();ta.focus();try{ta.setSelectionRange(pos,pos);}catch(x){}};
+  $('#ePs',p).onclick=()=>ins('/');$('#ePl',p).onclick=()=>ins('//');
+  const rt=$('#eResetT',p);if(rt)rt.onclick=()=>{delete b.myTime;save();openSheet('edit',id,true);};
+  const ek=$('#eKind',p);if(ek)ek.onchange=e=>{b.kind=e.target.value;save();};
+  const es=$('#eScene',p);if(es)es.onclick=()=>{save();renderScript();const x=sectionOf(b.id)||sections().find(z=>z.id===b.id);if(x)startRehearsal(null,x);else toast('Scenen har inga repliker.');};
+  const en=$('#eNewScene',p);if(en)en.onclick=()=>{const bl=S.script.blocks,i=bl.indexOf(b);const h={id:uid(),type:'head',kind:'scene',text:'Ny scen'};bl.splice(i,0,h);save();renderScript();openSheet('edit',h.id);toast('Skriv in scenens namn.');};
+  const et=$('#eTest',p);if(et)et.onclick=()=>preview(b,b.type==='line'?charCfg(b.who):{...S.settings.narrator,idx:0});
+  const est=$('#eStart',p);if(est)est.onclick=()=>{b.text=normalizePauses(ta.value);save();renderScript();startRehearsal(b.id);};
+  $('#eMerge',p).onclick=()=>{const bl=S.script.blocks,i=bl.indexOf(b);if(i<1){toast('Det finns ingen rad ovanför.');return;}const a=bl[i-1];a.text=joinText(a.text||'',b.text);bl.splice(i,1);save();openSheet('edit',a.id);};
+  $('#eDel',p).onclick=ev=>{const btn=ev.currentTarget;if(!btn.dataset.armed){btn.dataset.armed='1';btn.textContent='Tryck igen för att ta bort';return;}S.script.blocks.splice(S.script.blocks.indexOf(b),1);closeSheet();toast('Raden är borttagen.');};
+};
+
+function micText(){if(!S.settings.useMic)return 'Avstängd.';
+  return {missing:'Röstigenkänning finns inte i den här vyn. Appen går på tid i stället.',denied:'Mikrofonen är spärrad i den här vyn. Appen går på tid i stället.',ok:'Mikrofonen fungerar.',unknown:'Testas när du repeterar första gången.'}[micState];}
+BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type="button" class="x">Klar</button></h3>
+<div><div class="kv"><span>Kort paus</span><span id="spv">${st.shortPause.toFixed(1)} s</span></div><input type="range" id="sPs" min=".2" max="2" step=".1" value="${st.shortPause}" aria-label="Kort paus i sekunder"></div>
+<div><div class="kv"><span>Lång paus</span><span id="lpv">${st.longPause.toFixed(1)} s</span></div><input type="range" id="sPl" min=".8" max="5" step=".1" value="${st.longPause}" aria-label="Lång paus i sekunder"></div>
+<div><div class="kv"><span>Tempo för alla AI-röster</span><span id="tpv">${st.tempo.toFixed(2)}</span></div><input type="range" id="sTp" min=".7" max="1.3" step=".02" value="${st.tempo}" aria-label="Tempo för alla röster"></div>
+<label class="chk"><input type="checkbox" id="sMic"${st.useMic?' checked':''}>Lyssna med mikrofonen på mina repliker</label>
+<p class="note">${esc(micText())}</p>
+<p class="note">Utan mikrofon väntar appen hur länge som helst på din replik. Tryck var som helst på skärmen när du är klar.</p>
+<p class="note">Med mikrofonen går appen bara vidare när den hört slutorden i din replik eller när du säger "nästa". Tystnad får den aldrig att gå vidare. Glömmer du bort dig kan du säga "sufflera".</p>
+<label class="chk"><input type="checkbox" id="sHide"${st.hideMine?' checked':''}>Dölj mina repliker under repetition (visa bara första bokstäverna)</label>
+<label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
+<div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
+<button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
+<p class="note">Motläsaren version 10 (Safari)</p>`;};
+BIND.settings=(_,p)=>{const st=S.settings;
+  $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
+  $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
+  $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
+  $('#sMic',p).onchange=e=>{st.useMic=e.target.checked;if(st.useMic&&micState==='denied')micState=SR?'unknown':'missing';save();openSheet('settings',null,true);};
+  $('#sHide',p).onchange=e=>{st.hideMine=e.target.checked;save();};
+  $('#sDirs',p).onchange=e=>{st.readDirs=e.target.checked;$('#narr',p).hidden=!st.readDirs;save();};
+  $('#sNv',p).onchange=e=>{st.narrator.voiceURI=e.target.value;save();};
+  $('#sClear',p).onclick=ev=>{const btn=ev.currentTarget;if(!btn.dataset.armed){btn.dataset.armed='1';btn.textContent='Tryck igen för att rensa allt';return;}
+    try{localStorage.removeItem(STORE);}catch(e){}S={script:null,settings:defaults(),pos:null,example:false};applyParsed(parseText(EXAMPLE),'Exempel: Kaffet',true);};
+};
+
+/* ---------- toast & start ---------- */
+let toastT=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;},2800);}
+if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoices();if(sheetKind==='roles'||sheetKind==='settings')openSheet(sheetKind,sheetArg,true);};}catch(e){}}
+if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
+renderAll();
+})();
+</script>
+
+</body>
+</html>
