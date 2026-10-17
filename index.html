@@ -272,10 +272,10 @@ const TONES={
 };
 const TONE_WORDS=[['arg',/arg|ilsk|rasande|fräser|skarpt|irriter|vred/],['ledsen',/ledsen|ledset|gråt|snyft|sorgs|uppgiven|bruten/],['glad',/glad|glatt|skratt|förtjust|upprymd|\bler\b|leende|entusias/],['viskar',/viska|lågt|tyst|för sig själv/],['ropar',/ropa|skrik|vrål|högt/],['tveksam',/tvek|osäker|nervös|stamm|försiktig/],['varm',/varm|ömt|mjukt|kärleksfull|tröst/]];
 
-const defaults=()=>({mine:[],chars:{},shortPause:.6,longPause:1.6,useMic:true,dictation:false,fallback:'tap',v:2,hideMine:false,readDirs:false,narrator:{voiceURI:'',pitch:1,rate:1},tempo:1});
+const defaults=()=>({mine:[],chars:{},shortPause:.6,longPause:1.6,useMic:true,dictation:false,fallback:'tap',asr:false,quietSec:.8,v:3,hideMine:false,readDirs:false,narrator:{voiceURI:'',pitch:1,rate:1},tempo:1});
 let S={script:null,settings:defaults(),pos:null,example:false};
 function save(){try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){toast('Kunde inte spara i telefonen. Manuset kan vara för stort.');}}
-function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;const s=JSON.parse(raw);if(!s||!s.script||!Array.isArray(s.script.blocks))return false;S={...S,...s,settings:{...defaults(),...(s.settings||{})}};if((S.settings.v||1)<2){S.settings.fallback='tap';S.settings.v=2;}S.settings.dictation=false;return true;}catch(e){return false;}}
+function load(){try{const raw=localStorage.getItem(STORE);if(!raw)return false;const s=JSON.parse(raw);if(!s||!s.script||!Array.isArray(s.script.blocks))return false;S={...S,...s,settings:{...defaults(),...(s.settings||{})}};if((S.settings.v||1)<2){S.settings.fallback='tap';S.settings.v=2;}if(S.settings.v<3){S.settings.asr=false;S.settings.quietSec=.8;S.settings.v=3;}S.settings.dictation=false;return true;}catch(e){return false;}}
 
 /* ---------- roller ---------- */
 const findB=id=>S.script.blocks.find(b=>b.id===id);
@@ -582,7 +582,10 @@ function cueHeard(words,heard){const n=words.length;if(!n)return true;const k=Ma
 function listenVAD(b,onDone,onFail,onProgress){
   if(!S.settings.useMic)return null;
   let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[],proc=null,sink=null,chunks=[],busy=false,checked=0,armed=false,lastRun=0;
-  const sens=S.settings.micSens||1,need=400,quiet=(S.settings.quietSec||2)*1000;
+  const sens=S.settings.micSens||1,quiet=(S.settings.quietSec||.8)*1000;
+  const est=Math.max(.4,expected(b.text).length/3.6*.5); // snabb läsning: ca 3,6 ord/s, halva tiden räcker
+  const need=Math.max(400,(b.mySpeak?b.mySpeak*.7:est)*1000);
+  const pauses=expected(b.text).reduce((a,x)=>a+x.pause,0);
   const words=expected(b.text).map(x=>x.w);
   const early=words.length>=4?words.slice(0,words.length-1):words; // ordet före slutordet räcker
   const kill=()=>{dead=true;clearInterval(iv);try{proc&&proc.disconnect();sink&&sink.disconnect();}catch(e){}vadClose();};
@@ -596,7 +599,7 @@ function listenVAD(b,onDone,onFail,onProgress){
       const thr=Math.max(.012,VAD.noise*3)/sens,now=Date.now();if(lv>thr){speech+=50;lastVoice=now;}
       const sil=lastVoice?now-lastVoice:0;
       const useAsr=S.settings.asr!==false&&ASR.state==='ready'&&proc;
-      if(!useAsr){onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/quiet):0,lv/thr);if(speech>=need&&lastVoice&&sil>quiet){kill();onDone();}return;}
+      if(!useAsr){const q=quiet+Math.min(pauses,2)*400;onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/q):Math.min(.99,speech/need)*.0,lv/thr);if(speech>=need&&lastVoice&&sil>q){const spoke=speech/1000;kill();b.mySpeak=Math.min(90,Math.max(.4,spoke));save();onDone();}return;}
       onProgress(null,lv/thr);
       if(armed&&sil>320){kill();onDone();return;}
       const talking=lv>thr&&speech>=1200&&now-lastRun>1600;
@@ -856,8 +859,8 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sAsr"${st.asr!==false?' checked':''}>Förstå orden: gå vidare när slutorden i min replik hörs</label>
 <p class="note">Använder en svensk taligenkänning som körs i telefonen. Första gången laddas omkring 40 MB ner, sedan sparas den. Det du säger skickas inte någonstans. ${ASR.state==='ready'?'Status: klar.':ASR.state==='loading'?'Status: laddar ner.':ASR.state==='error'?'Status: kunde inte laddas.':''}</p>
 <button type="button" class="ghost" id="sAsrLoad">Ladda ner taligenkänningen nu</button>
-<div><div class="kv"><span>Tystnad innan appen går vidare (när orden inte används)</span><span id="qsv">${(st.quietSec||2).toFixed(1)} s</span></div><input type="range" id="sQuiet" min="1" max="6" step=".5" value="${st.quietSec||2}" aria-label="Sekunder tystnad innan appen går vidare"></div>
-<p class="note">Appen väntar hur länge som helst tills du börjar prata. När du har sagt något och sedan är tyst så här många sekunder går den vidare. Brukar du ta längre pauser mitt i repliker, öka tiden. Hör den dig inte, höj känsligheten. Hör den bakgrundsljud som tal, sänk den.</p>
+<div><div class="kv"><span>Tystnad efter din replik innan appen går vidare</span><span id="qsv">${(st.quietSec||.8).toFixed(1)} s</span></div><input type="range" id="sQuiet" min=".4" max="4" step=".1" value="${st.quietSec||.8}" aria-label="Sekunder tystnad innan appen går vidare"></div>
+<p class="note">Appen väntar hur länge som helst tills du börjar prata. Den räknar med att en replik tar ungefär halva tiden av vanlig snabb läsning, och går vidare när du har pratat så länge och sedan är tyst så här länge. Den lär sig din takt för varje replik. Hör den dig inte, höj känsligheten. Hoppar den för tidigt, sänk den eller öka tystnaden.</p>
 <p class="note">${esc(micText())}</p>
 <p class="note">Utan mikrofon väntar appen hur länge som helst på din replik. Tryck var som helst på skärmen när du är klar.</p>
 <p class="note">Med mikrofonen går appen bara vidare när den hört slutorden i din replik eller när du säger "nästa". Tystnad får den aldrig att gå vidare. Glömmer du bort dig kan du säga "sufflera".</p>
@@ -865,7 +868,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 18 (Safari)</p>`;};
+<p class="note">Motläsaren version 19 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
