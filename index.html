@@ -531,7 +531,7 @@ function listenVAD(b,onDone,onFail,onProgress){
   let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[];
   const sens=S.settings.micSens||1,quiet=(S.settings.quietSec||.8)*1000;
   const nW=expected(b.text).length;
-  const est=Math.max(.5,(nW*.2+Math.max(0,nW-6)*.25+Math.max(0,nW-14)*.15)*(S.settings.pace||1)); // ca 0,26 s tal per ord, extra tid för långa repliker
+  const est=Math.max(.5,(nW*.2+Math.max(0,nW-6)*.17+Math.max(0,nW-14)*.12)*(S.settings.pace||1)); // ca 0,26 s tal per ord, extra tid för långa repliker
   const need=Math.max(400,Math.max(est,(b.mySpeak||0)*.85)*1000);
   const pauses=expected(b.text).reduce((a,x)=>a+x.pause,0);
   const kill=()=>{dead=true;clearInterval(iv);vadClose();};
@@ -540,7 +540,7 @@ function listenVAD(b,onDone,onFail,onProgress){
       if(t<350){calib.push(lv);return;}
       if(calib.length){const m=calib.slice().sort((a,b)=>a-b)[Math.floor(calib.length/2)];VAD.noise=Math.min(Math.max(.002,m),.03);calib=[];}
       const thr=Math.max(.012,VAD.noise*3)/sens,now=Date.now();if(lv>thr){speech+=50;lastVoice=now;}
-      const sil=lastVoice?now-lastVoice:0,q=quiet*(nW<=6?.75:nW>=20?1.5:nW>=12?1.3:1)+Math.min(pauses,2)*400;
+      const sil=lastVoice?now-lastVoice:0,q=quiet*(nW<=6?.75:nW>=20?1.3:nW>=12?1.15:1)+Math.min(pauses,2)*400;
       onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/q):0,lv/thr);
       if(speech>=need&&lastVoice&&sil>q){kill();R.autoAt={id:b.id,t:Date.now()};onDone();}
     },50);});
@@ -624,7 +624,7 @@ function endRehearsal(){vadClose();R.tok++;stopCur();try{speechSynthesis.cancel(
   const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
 function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
 $('#rClose').onclick=endRehearsal;
-$('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){const nW=expected(b.text).length;const base=Math.max(b.mySpeak||0,Math.max(.5,(nW*.2+Math.max(0,nW-6)*.25+Math.max(0,nW-14)*.15)*(S.settings.pace||1)));b.mySpeak=Math.min(90,base*1.35);save();toast('Okej, appen väntar längre på den repliken från och med nu.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
+$('#rBack').onclick=()=>{if(R.autoAt&&Date.now()-R.autoAt.t<4000){const b=findB(R.autoAt.id);if(b){const nW=expected(b.text).length;const base=Math.max(b.mySpeak||0,Math.max(.5,(nW*.2+Math.max(0,nW-6)*.17+Math.max(0,nW-14)*.12)*(S.settings.pace||1)));b.mySpeak=Math.min(90,base*1.35);save();toast('Okej, appen väntar längre på den repliken från och med nu.');}}R.autoAt=null;R.idx=Math.max(0,R.idx-1);R.paused=false;step();};
 $('#rRepeat').onclick=()=>{R.paused=false;step();};
 $('#rPlay').onclick=togglePause;
 $('#rNext').onclick=()=>{if(R.idx<R.queue.length){R.paused=false;advance();}};
@@ -781,7 +781,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 23 (Safari)</p>`;};
+<p class="note">Motläsaren version 24 (Safari)</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
