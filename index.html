@@ -448,24 +448,37 @@ function endMatched(exp,heard){const n=exp.length;if(!n)return true;const k=Math
 function expected(text){const out=[];let pause=0;const t=' '+normalizePauses(text).replace(/\([^)]*\)|\[[^\]]*\]/g,' ')+' ';
   for(const p of t.split(/(\s\/\/(?=\s)|\s\/(?=\s))/)){const q=(p||'').trim();if(q==='//'){pause+=S.settings.longPause;continue;}if(q==='/'){pause+=S.settings.shortPause;continue;}for(const w of norm(q)){out.push({w,pause});pause=0;}}
   return out;}
+/* En enda igångsatt röstigenkänning som lever hela repetitionen.
+   iPhone tillåter bara start från ett tryck, så den startas av Repetera eller Mikrofon och stängs inte av mellan replikerna. */
+const MIC={rec:null,on:false,text:'',finals:'',cur:'',listener:null,last:0};
+function micStart(){
+  if(!SR){micState='missing';renderMic();return false;}
+  if(MIC.rec)return true;
+  try{const rec=new SR();rec.lang='sv-SE';rec.continuous=true;rec.interimResults=true;
+    rec.onstart=()=>{micState='ok';MIC.restarting=false;renderMic();};
+    rec.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=' '+e.results[i][0].transcript;MIC.cur=t;MIC.text=MIC.finals+' '+t;MIC.last=Date.now();micState='ok';renderMic();if(MIC.listener)MIC.listener();};
+    rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error)){micErr=e.error;if(MIC.restarting){micState='paused';}else{micState='denied';MIC.on=false;toast(micHelp());}renderMic();}};
+    rec.onend=()=>{MIC.finals=MIC.text;MIC.cur='';MIC.rec=null;
+      if(MIC.on&&micState!=='denied'&&micState!=='paused'){MIC.restarting=true;setTimeout(()=>{if(MIC.on&&!MIC.rec)micStart();},150);}else renderMic();};
+    MIC.rec=rec;MIC.on=true;rec.start();return true;
+  }catch(e){micErr='start: '+(e&&e.message||e);micState='denied';MIC.rec=null;renderMic();return false;}
+}
+function micStop(){MIC.on=false;MIC.restarting=false;MIC.listener=null;try{MIC.rec&&MIC.rec.abort();}catch(e){}MIC.rec=null;if(micState==='ok'||micState==='paused')micState='unknown';renderMic();}
 function listenFor(b,onDone,onFail,onProgress,onCmd){
-  if(!SR||!S.settings.useMic||micState==='denied')return null;
+  if(!SR||!S.settings.useMic||!MIC.on||micState==='paused')return null;
   const exp=expected(b.text),n=exp.length,words=exp.map(x=>x.w);
-  let matched=0,last=Date.now(),dead=false,rec=null,heard=false,restarts=0,lastHeard=null,acc='',curTxt='';
-  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  const kill=()=>{dead=true;clearInterval(iv);try{rec&&rec.abort();}catch(e){}};
+  const base=norm(MIC.text).length;let matched=0,dead=false,heard=false,lastHeard=null,cmdDone=false;
+  const kill=()=>{dead=true;clearInterval(iv);if(MIC.listener===hear)MIC.listener=null;};
   const finish=()=>{if(dead)return;kill();onDone();};
-  const fail=why=>{micState='denied';micErr=why;kill();setTimeout(()=>onFail(why),0);};
-  const iv=setInterval(()=>{if(dead||!heard)return;const sil=(Date.now()-last)/1000,r=n?matched/n:1,extra=exp[matched]?exp[matched].pause:0;
-    if((matched>=n||(lastHeard&&endMatched(words,lastHeard)))&&r>=.5&&sil>.4+extra)finish();},200);
-  const start=()=>{try{rec=new SR();rec.lang='sv-SE';rec.continuous=!isIOS;curTxt='';rec.interimResults=true;
-    rec.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=' '+e.results[i][0].transcript;curTxt=t;const hw=norm(acc+' '+t);
-      if(onCmd&&hw.length){const c=hw[hw.length-1];if(c==='sufflera'&&!words.includes('sufflera')){onCmd('sufflera');}else if(matched===0&&hw.length<=2&&['nästa','hoppa','backa','igen'].includes(c)){kill();onCmd(c);return;}}
-      lastHeard=hw;const m=matchCount(words,hw);if(m>matched)matched=m;heard=true;restarts=0;last=Date.now();micState='ok';renderMic();onProgress(n?matched/n:1);};
-    rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error))fail(e.error);};
-    rec.onend=()=>{if(dead)return;acc+=' '+curTxt;curTxt='';if(++restarts>200){fail('stopp');return;}setTimeout(()=>{if(!dead)start();},150);};
-    rec.start();}catch(e){fail('start');}};
-  start();
+  const hear=()=>{if(dead)return;const all=norm(MIC.text);const hw=all.slice(Math.min(base,all.length));if(!hw.length)return;
+    const c=hw[hw.length-1];
+    if(onCmd&&!cmdDone){if(c==='sufflera'&&!words.includes('sufflera')){cmdDone=true;onCmd('sufflera');}
+      else if(matched===0&&hw.length<=2&&['nästa','hoppa','backa','igen'].includes(c)){kill();onCmd(c);return;}}
+    lastHeard=hw;const m=matchCount(words,hw);if(m>matched)matched=m;heard=true;onProgress(n?matched/n:1);};
+  const iv=setInterval(()=>{if(dead)return;if(!MIC.on||micState==='paused'){kill();onFail('paus');return;}if(!heard)return;
+    const sil=(Date.now()-MIC.last)/1000,r=n?matched/n:1,extra=exp[matched]?exp[matched].pause:0;
+    if((matched>=n||(lastHeard&&endMatched(words,lastHeard)))&&r>=.5&&sil>.5+extra)finish();},200);
+  MIC.listener=hear;
   return kill;
 }
 
@@ -510,7 +523,7 @@ function startRehearsal(fromId,scene){
   unlockSpeech();closeSheet();R.queue=q;
   let i=fromId?q.findIndex(b=>b.id===fromId):0;
   if(i<0){const all=S.script.blocks,k=all.findIndex(b=>b.id===fromId);i=0;for(let j=Math.max(0,k);j<all.length;j++){const qi=q.indexOf(all[j]);if(qi>=0){i=qi;break;}}}
-  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;document.documentElement.classList.add('r-open');keepAwake(true);step();
+  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;if(S.settings.useMic&&SR&&!MIC.on&&micState!=='denied'){micState='unknown';micStart();}document.documentElement.classList.add('r-open');keepAwake(true);step();
 }
 function setStatus(text,p){$('#rStatus').innerHTML=`<span>${esc(text)}</span>${p!=null?`<div class="meter"><i style="width:${Math.round(clamp(p,0,1)*100)}%"></i></div>`:''}`;}
 function stopCur(){clearTimeout(R.t);if(R.cancel){const c=R.cancel;R.cancel=null;try{c();}catch(e){}}}
@@ -525,11 +538,11 @@ function step(){
   if(readerOf(b)==='ai'){setStatus(`AI läser ${b.who}`);R.cancel=speakLine(b,charCfg(b.who),go);return;}
   R.mineStart=Date.now();
   const fallback=()=>{if(tok!==R.tok)return;R.mineStart=Date.now();
-    setStatus('Din tur. Ta den tid du behöver och tryck på skärmen när du är klar.');};
+    setStatus(S.settings.useMic&&SR?'Din tur. Tryck på skärmen när du är klar, eller på Mikrofon så lyssnar jag.':'Din tur. Ta den tid du behöver och tryck på skärmen när du är klar.');};
   const cmd=c=>{if(tok!==R.tok)return;if(c==='sufflera'){prompter();return;}R.cancel=null;if(c==='backa')$('#rBack').onclick();else if(c==='igen')step();else advance();};
   const prog=p=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar…',p);};
   if(micState==='denied'||micState==='missing'||!S.settings.useMic){if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}}
-  const kill=listenFor(b,()=>{if(tok===R.tok)advance();},()=>{if(tok!==R.tok)return;R.cancel=null;if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}renderMic();toast(micHelp());fallback();},prog,cmd);
+  const kill=listenFor(b,()=>{if(tok===R.tok)advance();},()=>{if(tok!==R.tok)return;R.cancel=null;if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}renderMic();if(micState==='paused')toast('Mikrofonen stannade. Tryck på knappen högst upp för att lyssna igen.');fallback();},prog,cmd);
   if(kill){R.cancel=kill;setStatus('Din tur. Jag lyssnar…',0);}else fallback();
 }
 function prompter(){const b=R.queue[R.idx];if(!b)return;R.hintN=(R.hintN||0)+3;R.reveal=false;renderR();}
@@ -538,15 +551,14 @@ function micHelp(){const e=micErr||'okänt';
   if(/service-not-allowed/.test(e))return 'Röstigenkänningen är avstängd i telefonen (service-not-allowed). Slå på Diktering: Inställningar → Allmänt → Tangentbord → Aktivera diktering. Tryck sedan Mikrofon igen.';
   if(/not-allowed|nekad|NotAllowed/.test(e))return 'Safari har nekat mikrofonen ('+e+'). Inställningar → Appar → Safari → Mikrofon → Fråga eller Tillåt. Ladda om sidan och tryck Mikrofon.';
   return 'Mikrofonen fungerar inte ('+e+'). Tryck på skärmen när du är klar.';}
-function renderMic(){const m=$('#rMic');const on=S.settings.useMic&&micState==='ok',off=!S.settings.useMic||micState==='denied'||micState==='missing';
+function renderMic(){const m=$('#rMic');if(micState==='paused'){m.classList.remove('on');m.classList.add('off');m.textContent='Tryck för att lyssna';return;}const on=S.settings.useMic&&MIC.on&&micState==='ok',off=!S.settings.useMic||micState==='denied'||micState==='missing';
   m.classList.toggle('on',on);m.classList.toggle('off',off);m.textContent=on?'Mikrofon på':off?(S.settings.useMic?'Mikrofon spärrad':'Mikrofon av'):'Mikrofon';}
 $('#rMic').onclick=e=>{e.stopPropagation();
-  if(S.settings.useMic&&micState==='ok'){S.settings.useMic=false;save();renderMic();step();return;}
-  S.settings.useMic=true;save();if(micState==='denied')micState=SR?'unknown':'missing';
-  if(!SR){micState='missing';renderMic();toast('Den här webbläsaren saknar röstigenkänning. Använd Safari.');return;}
-  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&!R.gumOk){navigator.mediaDevices.getUserMedia({audio:true}).then(st=>{st.getTracks().forEach(t=>t.stop());R.gumOk=true;$('#rMic').onclick({stopPropagation(){}});}).catch(err=>{micState='denied';micErr='mikrofon-nekad: '+(err&&err.name||err);renderMic();toast(micHelp());});return;}
-  const b=R.queue[R.idx];if(b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)step();
-  else{try{const t=new SR();t.lang='sv-SE';t.onerror=ev=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(ev.error)){micState='denied';micErr=ev.error;renderMic();toast(micHelp());}};t.onstart=()=>{micState='ok';renderMic();try{t.abort();}catch(x){}};t.start();}catch(x){micState='denied';renderMic();}}
+  if(MIC.on&&micState==='ok'){micStop();S.settings.useMic=false;save();step();return;}
+  S.settings.useMic=true;save();MIC.restarting=false;micState=SR?'unknown':'missing';
+  if(!SR){renderMic();toast('Den här webbläsaren saknar röstigenkänning. Använd Safari.');return;}
+  micStop();MIC.on=false;if(micStart()){MIC.on=true;}
+  const b=R.queue[R.idx];if(b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)setTimeout(step,300);
   renderMic();};
 function renderR(){renderMic();
   const q=R.queue,b=q[R.idx],p=q[R.idx-1];
@@ -563,7 +575,7 @@ function renderR(){renderMic();
   const body=mine&&S.settings.hideMine&&!R.reveal?`<p class="r-txt hint">${esc(partialHint(b.text,R.hintN||0))}</p><div class="row"><button type="button" class="ghost" data-act="prompt">Sufflera</button><button type="button" class="ghost" data-act="reveal">Visa hela</button></div>`:`<p class="r-txt">${fmt(b.text,mine)}</p>`;
   card.innerHTML=`<div class="r-nm" style="color:${col(b)}">${label}</div>${body}`;
 }
-function endRehearsal(){try{$('#rIn').blur();}catch(e){}R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}R.on=false;$('#rehearse').hidden=true;document.documentElement.classList.remove('r-open');keepAwake(false);renderBar();
+function endRehearsal(){micStop();try{$('#rIn').blur();}catch(e){}R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}R.on=false;$('#rehearse').hidden=true;document.documentElement.classList.remove('r-open');keepAwake(false);renderBar();
   const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
 function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
 $('#rClose').onclick=endRehearsal;
