@@ -211,13 +211,10 @@ details[open] > *:not(summary){margin-top:8px}
 
 <div id="rehearse" hidden>
   <div class="r-top"><button type="button" class="x" id="rClose">Avsluta</button><button type="button" class="x mic" id="rMic">Mikrofon</button><span id="rCount"></span></div>
-  <textarea id="rIn" hidden aria-hidden="true" tabindex="-1"></textarea>
   <div class="r-stage">
     <div class="r-prev" id="rPrev"></div>
     <div class="r-card" id="rCard"></div>
     <div id="rStatus" aria-live="polite"></div>
-    <div id="rHeard" class="r-heard"></div>
-    <div id="rAsr" class="r-asr"></div>
     <div id="rTts" class="r-asr"></div>
   </div>
   <div class="r-ctrl">
@@ -517,40 +514,6 @@ function endMatched(exp,heard){const n=exp.length;if(!n)return true;const k=Math
 function expected(text){const out=[];let pause=0;const t=' '+normalizePauses(text).replace(/\([^)]*\)|\[[^\]]*\]/g,' ')+' ';
   for(const p of t.split(/(\s\/\/(?=\s)|\s\/(?=\s))/)){const q=(p||'').trim();if(q==='//'){pause+=S.settings.longPause;continue;}if(q==='/'){pause+=S.settings.shortPause;continue;}for(const w of norm(q)){out.push({w,pause});pause=0;}}
   return out;}
-/* En enda igångsatt röstigenkänning som lever hela repetitionen.
-   iPhone tillåter bara start från ett tryck, så den startas av Repetera eller Mikrofon och stängs inte av mellan replikerna. */
-const MIC={rec:null,on:false,text:'',finals:'',cur:'',listener:null,last:0};
-function micStart(){
-  if(!SR){micState='missing';renderMic();return false;}
-  if(MIC.rec)return true;
-  try{const rec=new SR();rec.lang='sv-SE';rec.continuous=true;rec.interimResults=true;
-    rec.onstart=()=>{micState='ok';MIC.restarting=false;renderMic();};
-    rec.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=' '+e.results[i][0].transcript;MIC.cur=t;MIC.text=MIC.finals+' '+t;MIC.last=Date.now();micState='ok';renderMic();if(MIC.listener)MIC.listener();};
-    rec.onerror=e=>{if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error)){micErr=e.error;if(MIC.restarting){micState='paused';}else{micState='denied';MIC.on=false;toast(micHelp());}renderMic();}};
-    rec.onend=()=>{MIC.finals=MIC.text;MIC.cur='';MIC.rec=null;
-      if(MIC.on&&micState!=='denied'&&micState!=='paused'){MIC.restarting=true;setTimeout(()=>{if(MIC.on&&!MIC.rec)micStart();},150);}else renderMic();};
-    MIC.rec=rec;MIC.on=true;rec.start();return true;
-  }catch(e){micErr='start: '+(e&&e.message||e);micState='denied';MIC.rec=null;renderMic();return false;}
-}
-function micStop(){MIC.on=false;MIC.restarting=false;MIC.listener=null;try{MIC.rec&&MIC.rec.abort();}catch(e){}MIC.rec=null;if(micState==='ok'||micState==='paused')micState='unknown';renderMic();}
-function listenFor(b,onDone,onFail,onProgress,onCmd){
-  if(!SR||!S.settings.useMic||!MIC.on||micState==='paused')return null;
-  const exp=expected(b.text),n=exp.length,words=exp.map(x=>x.w);
-  const base=norm(MIC.text).length;let matched=0,dead=false,heard=false,lastHeard=null,cmdDone=false;
-  const kill=()=>{dead=true;clearInterval(iv);if(MIC.listener===hear)MIC.listener=null;};
-  const finish=()=>{if(dead)return;kill();onDone();};
-  const hear=()=>{if(dead)return;const all=norm(MIC.text);const hw=all.slice(Math.min(base,all.length));if(!hw.length)return;
-    const c=hw[hw.length-1];
-    if(onCmd&&!cmdDone){if(c==='sufflera'&&!words.includes('sufflera')){cmdDone=true;onCmd('sufflera');}
-      else if(matched===0&&hw.length<=2&&['nästa','hoppa','backa','igen'].includes(c)){kill();onCmd(c);return;}}
-    lastHeard=hw;const m=matchCount(words,hw);if(m>matched)matched=m;heard=true;onProgress(n?matched/n:1);};
-  const iv=setInterval(()=>{if(dead)return;if(!MIC.on||micState==='paused'){kill();onFail('paus');return;}if(!heard)return;
-    const sil=(Date.now()-MIC.last)/1000,r=n?matched/n:1,extra=exp[matched]?exp[matched].pause:0;
-    if((matched>=n||(lastHeard&&endMatched(words,lastHeard)))&&r>=.5&&sil>.5+extra)finish();},200);
-  MIC.listener=hear;
-  return kill;
-}
-
 /* ---------- egen lyssning: hör när du pratar och när du tystnar ---------- */
 const VAD={ctx:null,stream:null,src:null,an:null,buf:null,state:'idle',err:'',noise:.006,level:0};
 function vadInit(){try{if(!VAD.ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC){VAD.state='denied';VAD.err='ljud saknas';return false;}VAD.ctx=new AC();}if(VAD.ctx.state==='suspended')VAD.ctx.resume();return true;}catch(e){VAD.state='denied';VAD.err=String(e);return false;}}
@@ -563,54 +526,22 @@ async function vadOpen(){if(VAD.stream)return true;
 function vadClose(){try{VAD.stream&&VAD.stream.getTracks().forEach(t=>t.stop());}catch(e){}try{VAD.src&&VAD.src.disconnect();}catch(e){}VAD.stream=null;VAD.src=null;VAD.an=null;}
 function vadLevel(){if(!VAD.an)return 0;VAD.an.getFloatTimeDomainData(VAD.buf);let s=0;for(let i=0;i<VAD.buf.length;i++)s+=VAD.buf[i]*VAD.buf[i];return Math.sqrt(s/VAD.buf.length);}
 function speakSeconds(b){const n=expected(b.text).length;return Math.max(.6,n/2.7);}
-/* Svensk taligenkänning som körs i telefonen (Whisper via Transformers.js). Laddas ner en gång och sparas. */
-const ASR={state:'idle',pipe:null,prog:0,err:''};
-function asrUI(){const el=$('#rAsr');if(!el)return;if(!S.settings.useMic||S.settings.asr===false){el.textContent='';return;}
-  el.textContent=ASR.state==='loading'?`Laddar ner taligenkänning … ${Math.round(ASR.prog*100)} % (bara första gången)`:ASR.state==='ready'?'Taligenkänning klar – jag lyssnar efter slutorden i din replik.':ASR.state==='error'?'Taligenkänningen kunde inte laddas ('+ASR.err.slice(0,80)+'). Jag går på tystnad i stället.':'';}
-async function asrLoad(){if(ASR.state==='ready'||ASR.state==='loading')return;ASR.state='loading';ASR.prog=0;asrUI();
-  try{const T=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
-    T.env.allowLocalModels=false;const files={};
-    ASR.pipe=await T.pipeline('automatic-speech-recognition','Xenova/whisper-tiny',{dtype:'q8',device:'wasm',
-      progress_callback:p=>{if(p.status==='progress'&&p.total){files[p.file]=[p.loaded,p.total];let x=0,y=0;for(const k in files){x+=files[k][0];y+=files[k][1];}ASR.prog=y?x/y:0;asrUI();}}});
-    ASR.state='ready';asrUI();
-  }catch(e){ASR.state='error';ASR.err=String(e&&e.message||e);asrUI();}}
-function to16k(chunks,rate,maxSec){let n=0;for(const c of chunks)n+=c.length;const keep=Math.min(n,Math.floor(maxSec*rate));const all=new Float32Array(keep);let o=keep;
-  for(let i=chunks.length-1;i>=0&&o>0;i--){const c=chunks[i];const take=Math.min(c.length,o);all.set(c.subarray(c.length-take),o-take);o-=take;}
-  const r=rate/16000,len=Math.floor(keep/r),out=new Float32Array(len);for(let i=0;i<len;i++){const a=Math.floor(i*r),b=Math.max(a+1,Math.floor((i+1)*r));let s=0;for(let j=a;j<b;j++)s+=all[j];out[i]=s/(b-a);}return out;}
-function cueHeard(words,heard){const n=words.length;if(!n)return true;const k=Math.min(3,n),need=Math.min(2,k),tail=words.slice(n-k),h=heard.slice(-12);let j=0,hit=0;
-  for(const w of tail){for(let q=j;q<h.length;q++)if(similar(w,h[q])){hit++;j=q+1;break;}}return hit>=need&&(n<3||similar(tail[k-1],h[h.length-1])||similar(tail[k-1],h[h.length-2]||''));}
 function listenVAD(b,onDone,onFail,onProgress){
   if(!S.settings.useMic)return null;
-  let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[],proc=null,sink=null,chunks=[],busy=false,checked=0,armed=false,lastRun=0;
+  let dead=false,iv=null,speech=0,lastVoice=0,started=Date.now(),calib=[];
   const sens=S.settings.micSens||1,quiet=(S.settings.quietSec||.8)*1000;
   const est=Math.max(.4,expected(b.text).length/3.6*.5); // snabb läsning: ca 3,6 ord/s, halva tiden räcker
   const need=Math.max(400,(b.mySpeak?b.mySpeak*.7:est)*1000);
   const pauses=expected(b.text).reduce((a,x)=>a+x.pause,0);
-  const words=expected(b.text).map(x=>x.w);
-  const early=words.length>=4?words.slice(0,words.length-1):words; // ordet före slutordet räcker
-  const kill=()=>{dead=true;clearInterval(iv);try{proc&&proc.disconnect();sink&&sink.disconnect();}catch(e){}vadClose();};
+  const kill=()=>{dead=true;clearInterval(iv);vadClose();};
   vadOpen().then(ok=>{if(dead){vadClose();return;}if(!ok){renderMic();onFail(VAD.err);return;}renderMic();
-    const rate=VAD.ctx.sampleRate;
-    try{proc=VAD.ctx.createScriptProcessor(4096,1,1);sink=VAD.ctx.createGain();sink.gain.value=0;VAD.src.connect(proc);proc.connect(sink);sink.connect(VAD.ctx.destination);
-      proc.onaudioprocess=e=>{if(dead)return;chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));let tot=0;for(const c of chunks)tot+=c.length;while(tot>rate*30&&chunks.length>1)tot-=chunks.shift().length;};}catch(e){proc=null;}
     iv=setInterval(()=>{if(dead)return;const lv=vadLevel();VAD.level=lv;const t=Date.now()-started;
       if(t<350){calib.push(lv);return;}
       if(calib.length){const m=calib.slice().sort((a,b)=>a-b)[Math.floor(calib.length/2)];VAD.noise=Math.min(Math.max(.002,m),.03);calib=[];}
       const thr=Math.max(.012,VAD.noise*3)/sens,now=Date.now();if(lv>thr){speech+=50;lastVoice=now;}
-      const sil=lastVoice?now-lastVoice:0;
-      const useAsr=S.settings.asr!==false&&ASR.state==='ready'&&proc;
-      if(!useAsr){const q=quiet+Math.min(pauses,2)*400;onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/q):Math.min(.99,speech/need)*.0,lv/thr);if(speech>=need&&lastVoice&&sil>q){const spoke=speech/1000;kill();b.mySpeak=Math.min(90,Math.max(.4,spoke));save();onDone();}return;}
-      onProgress(null,lv/thr);
-      if(armed&&sil>320){kill();onDone();return;}
-      const talking=lv>thr&&speech>=1200&&now-lastRun>1600;
-      if(!busy&&!armed&&(talking||(speech>=need&&lastVoice&&sil>500&&lastVoice>checked))){busy=true;checked=lastVoice;lastRun=now;
-        const audio=to16k(chunks,rate,5);
-        ASR.pipe(audio,{language:'swedish',task:'transcribe'}).then(o=>{busy=false;if(dead)return;const txt=(o&&o.text||'').trim();const hw=norm(txt);
-          R.heard=txt;const st=$('#rHeard');if(st)st.textContent=txt?'Hörde: '+txt:'';
-          if(hw.length&&hw[hw.length-1]==='nästa'&&!words.includes('nästa')){kill();onDone();return;}
-          if(cueHeard(words,hw)){if(Date.now()-lastVoice>300){kill();onDone();}else armed=true;}
-          else if(cueHeard(early,hw))armed=true;
-        }).catch(e=>{busy=false;});}
+      const sil=lastVoice?now-lastVoice:0,q=quiet+Math.min(pauses,2)*400;
+      onProgress(speech>=need&&lastVoice&&lv<=thr?Math.min(1,sil/q):0,lv/thr);
+      if(speech>=need&&lastVoice&&sil>q){const spoke=speech/1000;kill();b.mySpeak=Math.min(90,Math.max(.4,spoke));save();onDone();}
     },50);});
   return kill;
 }
@@ -626,23 +557,6 @@ function sections(){const bl=S.script.blocks,out=[];let act=null,actId=null,cur=
   return out.filter(x=>x.lines>0);}
 function sectionOf(id){const bl=S.script.blocks,i=bl.findIndex(b=>b.id===id);return sections().find(x=>i>=x.start&&i<x.end)||null;}
 
-/* ---------- iPhone-diktering ---------- */
-const D={base:0,tok:-1,timer:null,b:null,onDone:null,onCmd:null,onProg:null};
-const dictOn=()=>S.settings.dictation&&document.activeElement===$('#rIn');
-function dictListen(b,tok,onDone,onProg,onCmd){const inp=$('#rIn');D.base=inp.value.length;D.tok=tok;D.b=b;D.onDone=onDone;D.onProg=onProg;D.onCmd=onCmd;clearTimeout(D.timer);
-  return ()=>{D.tok=-1;clearTimeout(D.timer);};}
-function dictInput(){if(D.tok!==R.tok||!D.b)return;const inp=$('#rIn');if(inp.value.length<D.base)D.base=0;
-  const hw=norm(inp.value.slice(D.base)),exp=expected(D.b.text),words=exp.map(x=>x.w),n=words.length;
-  if(hw.length&&hw[hw.length-1]==='sufflera'){D.onCmd('sufflera');}
-  if(hw.length&&hw.length<=1&&['nästa','hoppa','backa','igen'].includes(hw[0])){const c=hw[0];D.tok=-1;D.timer=setTimeout(()=>D.onCmd(c),400);return;}
-  const m=matchCount(words,hw),r=n?m/n:1;D.onProg(r);clearTimeout(D.timer);
-  const tok=D.tok;
-  if((m>=n||endMatched(words,hw))&&r>=.5)D.timer=setTimeout(()=>{if(D.tok===tok){D.tok=-1;D.onDone();}},500);
-}
-$('#rIn').addEventListener('input',dictInput);
-$('#rIn').addEventListener('click',e=>e.stopPropagation());
-$('#rIn').addEventListener('focus',()=>{const b=R.queue[R.idx];if(R.on&&b&&b.type==='line'&&readerOf(b)==='me'&&!R.paused)step();});
-
 /* ---------- repetition ---------- */
 const R={on:false,idx:0,queue:[],cancel:null,t:null,paused:false,tok:0,reveal:false};
 let wl=null;
@@ -656,13 +570,13 @@ function startRehearsal(fromId,scene){
   unlockSpeech();piperUnlock();closeSheet();R.queue=q;
   let i=fromId?q.findIndex(b=>b.id===fromId):0;
   if(i<0){const all=S.script.blocks,k=all.findIndex(b=>b.id===fromId);i=0;for(let j=Math.max(0,k);j<all.length;j++){const qi=q.indexOf(all[j]);if(qi>=0){i=qi;break;}}}
-  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;if(S.settings.piper!==false){const ids=new Set(q.filter(b=>b.type==='line'&&readerOf(b)==='ai').map(b=>piperVoiceOf(charCfg(b.who))).filter(Boolean));[...ids].reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(()=>{}),Promise.resolve());}if(S.settings.useMic){VAD.state='idle';vadInit();if(S.settings.asr!==false)asrLoad();}document.documentElement.classList.add('r-open');keepAwake(true);step();
+  R.idx=i;R.on=true;R.paused=false;$('#rehearse').hidden=false;if(S.settings.piper!==false){const ids=new Set(q.filter(b=>b.type==='line'&&readerOf(b)==='ai').map(b=>piperVoiceOf(charCfg(b.who))).filter(Boolean));[...ids].reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(()=>{}),Promise.resolve());}if(S.settings.useMic){VAD.state='idle';vadInit();}document.documentElement.classList.add('r-open');keepAwake(true);step();
 }
 function setStatus(text,p,lv){$('#rStatus').innerHTML=`<span>${esc(text)}${lv!=null?` <b class="lvl${lv>1?' on':''}"></b>`:''}</span>${p!=null?`<div class="meter"><i style="width:${Math.round(clamp(p,0,1)*100)}%"></i></div>`:''}`;}
 function stopCur(){clearTimeout(R.t);if(R.cancel){const c=R.cancel;R.cancel=null;try{c();}catch(e){}}}
 function advance(){stopCur();R.idx++;step();}
 function step(){
-  stopCur();const tok=++R.tok;R.reveal=false;R.hintN=0;renderR();{const h=$('#rHeard');if(h)h.textContent='';}asrUI();
+  stopCur();const tok=++R.tok;R.reveal=false;R.hintN=0;renderR();
   if(R.idx>=R.queue.length){setStatus(R.scene?'Slut på scenen.':'Slut på manuset.');return;}
   const b=R.queue[R.idx];S.pos=b.id;save();
   if(R.paused){setStatus('Pausad. Tryck Fortsätt.');return;}
@@ -675,8 +589,7 @@ function step(){
     setStatus(S.settings.useMic?'Din tur. Tryck på skärmen när du är klar.':'Din tur. Ta den tid du behöver och tryck på skärmen när du är klar.');};
   const cmd=c=>{if(tok!==R.tok)return;if(c==='sufflera'){prompter();return;}R.cancel=null;if(c==='backa')$('#rBack').onclick();else if(c==='igen')step();else advance();};
   const prog=p=>{if(tok===R.tok)setStatus('Din tur. Jag lyssnar…',p);};
-  if(micState==='denied'||micState==='missing'||!S.settings.useMic){if(dictOn()){R.cancel=dictListen(b,tok,()=>{if(tok===R.tok)advance();},prog,cmd);setStatus('Din tur. Jag lyssnar via dikteringen…',0);return;}}
-  const kill=listenVAD(b,()=>{if(tok===R.tok)advance();},why=>{if(tok!==R.tok)return;R.cancel=null;toast('Mikrofonen gick inte att starta ('+why+'). Tryck på skärmen när du är klar.');fallback();},(p,lv)=>{if(tok===R.tok)setStatus(p>0?'Tystnad … går vidare strax':(ASR.state==='ready'&&S.settings.asr!==false?'Din tur. Jag går vidare när jag hört slutorden.':'Din tur. Jag lyssnar – ta den tid du behöver.'),p,lv);});
+  const kill=listenVAD(b,()=>{if(tok===R.tok)advance();},why=>{if(tok!==R.tok)return;R.cancel=null;toast('Mikrofonen gick inte att starta ('+why+'). Tryck på skärmen när du är klar.');fallback();},(p,lv)=>{if(tok===R.tok)setStatus(p>0?'Tystnad … går vidare strax':'Din tur. Jag lyssnar – ta den tid du behöver.',p,lv);});
   if(kill){R.cancel=kill;setStatus('Din tur. Jag lyssnar – ta den tid du behöver.',0,0);}else fallback();
 }
 function prompter(){const b=R.queue[R.idx];if(!b)return;R.hintN=(R.hintN||0)+3;R.reveal=false;renderR();}
@@ -706,7 +619,7 @@ function renderR(){renderMic();
   const body=mine&&S.settings.hideMine&&!R.reveal?`<p class="r-txt hint">${esc(partialHint(b.text,R.hintN||0))}</p><div class="row"><button type="button" class="ghost" data-act="prompt">Sufflera</button><button type="button" class="ghost" data-act="reveal">Visa hela</button></div>`:`<p class="r-txt">${fmt(b.text,mine)}</p>`;
   card.innerHTML=`<div class="r-nm" style="color:${col(b)}">${label}</div>${body}`;
 }
-function endRehearsal(){vadClose();try{$('#rIn').blur();}catch(e){}R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}R.on=false;$('#rehearse').hidden=true;document.documentElement.classList.remove('r-open');keepAwake(false);renderBar();
+function endRehearsal(){vadClose();R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}R.on=false;$('#rehearse').hidden=true;document.documentElement.classList.remove('r-open');keepAwake(false);renderBar();
   const el=document.querySelector(`[data-id="${S.pos}"]`);if(el)el.scrollIntoView({block:'center'});}
 function togglePause(){R.paused=!R.paused;if(R.paused){R.tok++;stopCur();try{speechSynthesis.cancel();}catch(e){}renderR();setStatus('Pausad. Tryck Fortsätt.');}else step();}
 $('#rClose').onclick=endRehearsal;
@@ -856,9 +769,6 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
 <p class="note">Tre svenska AI-röster som körs i telefonen: NST, Lisa och Alma. Varje röst är ungefär 60 MB och laddas ner första gången den används. Använd gärna bara en eller två röster, det sparar minne. Välj röst per roll under Roller. Gratis och fungerar utan internet efter nedladdningen.</p>
 <button type="button" class="ghost" id="sPiperLoad">Ladda ner rösterna som används nu</button>
-<label class="chk"><input type="checkbox" id="sAsr"${st.asr!==false?' checked':''}>Förstå orden: gå vidare när slutorden i min replik hörs</label>
-<p class="note">Använder en svensk taligenkänning som körs i telefonen. Första gången laddas omkring 40 MB ner, sedan sparas den. Det du säger skickas inte någonstans. ${ASR.state==='ready'?'Status: klar.':ASR.state==='loading'?'Status: laddar ner.':ASR.state==='error'?'Status: kunde inte laddas.':''}</p>
-<button type="button" class="ghost" id="sAsrLoad">Ladda ner taligenkänningen nu</button>
 <div><div class="kv"><span>Tystnad efter din replik innan appen går vidare</span><span id="qsv">${(st.quietSec||.8).toFixed(1)} s</span></div><input type="range" id="sQuiet" min=".4" max="4" step=".1" value="${st.quietSec||.8}" aria-label="Sekunder tystnad innan appen går vidare"></div>
 <p class="note">Appen väntar hur länge som helst tills du börjar prata. Den räknar med att en replik tar ungefär halva tiden av vanlig snabb läsning, och går vidare när du har pratat så länge och sedan är tyst så här länge. Den lär sig din takt för varje replik. Hör den dig inte, höj känsligheten. Hoppar den för tidigt, sänk den eller öka tystnaden.</p>
 <p class="note">${esc(micText())}</p>
@@ -875,8 +785,6 @@ BIND.settings=(_,p)=>{const st=S.settings;
   $('#sTp',p).oninput=e=>{st.tempo=+e.target.value;$('#tpv',p).textContent=st.tempo.toFixed(2);save();};
   $('#sPiper',p).onchange=e=>{st.piper=e.target.checked;save();};
   $('#sPiperLoad',p).onclick=()=>{const ids=[...new Set(charList().filter(c=>!S.settings.mine.includes(c.name)).map(c=>piperVoiceOf(charCfg(c.name))).filter(Boolean))];ids.reduce((pr,id)=>pr.then(()=>piperEnsure(id)).catch(e=>toast('Rösten '+PIPER_VOICES[id]+' kunde inte laddas: '+(e&&e.message||e))),Promise.resolve()).then(()=>toast('Rösterna är klara.'));toast('Laddar ner '+ids.map(i=>PIPER_VOICES[i]).join(' och ')+'. Det tar en stund första gången.');};
-  $('#sAsr',p).onchange=e=>{st.asr=e.target.checked;save();if(st.asr)asrLoad();};
-  $('#sAsrLoad',p).onclick=()=>{asrLoad();toast('Laddar ner taligenkänningen. Det tar en stund första gången.');};
   $('#sQuiet',p).oninput=e=>{st.quietSec=+e.target.value;$('#qsv',p).textContent=st.quietSec.toFixed(1)+' s';save();};
   $('#sSens',p).oninput=e=>{st.micSens=+e.target.value;$('#msv',p).textContent=st.micSens.toFixed(1);save();};
   $('#sMic',p).onchange=e=>{st.useMic=e.target.checked;if(st.useMic&&micState==='denied')micState=SR?'unknown':'missing';save();openSheet('settings',null,true);};
