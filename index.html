@@ -285,6 +285,82 @@ body{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
 #scriptView .legend{margin:12px 2px 0}
 #script{margin-top:12px}
 .blk{scroll-margin-top:130px}
+
+/* ---------- iPad / stora skärmar ---------- */
+@media (min-width:768px){
+  body{font-size:17px;padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}
+  .wrap{max-width:1080px}
+  :root{--r:34px}
+  /* förstasida */
+  #home{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding-bottom:40px}
+  #home .top{padding-top:28px}
+  .logo{font-size:44px}
+  #home .top-row{margin-bottom:26px}
+  .bento{gap:20px;grid-auto-rows:minmax(190px,auto)}
+  .tile{padding:24px}
+  .tile .tl{font-size:19px}
+  .t-manus .tb{font-size:32px}
+  .t-manus .tm{font-size:16px}
+  .swap{font-size:15px;padding:7px 15px}
+  .t-roles .me{font-size:18px;padding:7px 15px}
+  .t-roles .tog{font-size:13px}
+  .t-scenes .num{width:36px;height:36px;font-size:17px}
+  .wave{height:54px;gap:5px}.wave i{max-width:6px}
+  .t-set .big{font-size:58px}.t-set .big small{font-size:20px}
+  .t-play .pb{width:96px;height:96px}.t-play .pb svg{width:38px;height:38px}
+  .t-play .tl{font-size:22px}.t-play .ts{font-size:15px}
+  .t-play .rails{gap:34px}.t-play .rails span{width:8px}
+  .t-ring .rc b{font-size:34px}.t-ring .rc span{font-size:14px}
+  .t-start .q{font-size:110px;height:62px}.t-start .tl{font-size:18px}
+  .hint-home{font-size:17px;margin-top:26px}
+  /* manus */
+  .sbar{margin:0 -32px;padding:14px 32px}
+  .mini{grid-template-columns:repeat(4,minmax(0,170px));gap:10px}
+  .mt{min-height:48px;font-size:15px;border-radius:16px}
+  .back{font-size:16px;padding:8px 16px 8px 8px}
+  .stitle{font-size:20px}
+  #script{padding:12px 40px 34px}
+  .txt{font-size:20px}
+  .blk.dir p{font-size:17px}
+  .blk.head h2{font-size:25px}.blk.head.act h2{font-size:36px}
+  .nm{font-size:17px}
+  .blk{scroll-margin-top:150px}
+  /* ark som centrerad dialog */
+  #sheet .panel{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:min(680px,calc(100% - 64px));max-height:84%;border-radius:var(--r);padding:20px 28px 28px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+  #sheet .panel::before{display:none}
+  /* repetition */
+  .r-top,.r-stage{max-width:900px}
+  .r-txt{font-size:32px}
+  .r-prev{font-size:19px}
+  .r-nm{font-size:17px}
+  .r-card{padding:34px;border-radius:40px}
+  #rStatus{font-size:18px}
+  .r-ctrl{max-width:560px;gap:16px}
+  .r-ctrl button{font-size:14px}
+  .r-ctrl button .ic{width:72px;height:72px;border-radius:24px}
+  .r-ctrl button.play .ic{width:92px;height:92px}
+  .r-ctrl svg{width:28px;height:28px}
+  #rehearse .x{font-size:16px;padding:9px 18px}
+  .prep-in{max-width:560px;padding:34px}
+  .prep-p{font-size:96px}
+  #toast{font-size:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 150px)}
+}
+.mt .lg{display:none}
+@media (min-width:768px){.mt .sm{display:none}.mt .lg{display:inline}}
+/* iPad liggande: kontrollerna som en fast kolumn till vänster om manuset */
+@media (min-width:1024px) and (orientation:landscape){
+  #scriptView:not([hidden]){display:grid;grid-template-columns:250px minmax(0,1fr);column-gap:28px;align-items:start}
+  #scriptView > *{grid-column:2}
+  #scriptView > .sbar{grid-column:1;grid-row:1 / span 20;position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);margin:20px 0 0;padding:18px;border:0;border-radius:var(--r);background:var(--wing);box-shadow:0 10px 24px rgba(30,30,60,.08)}
+  .sbar-r1{flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px}
+  .stitle{white-space:normal;font-size:22px;line-height:1.15}
+  .mini{grid-template-columns:1fr;gap:12px}
+  .mt{min-height:76px;font-size:18px;justify-content:flex-start;padding:0 20px;border-radius:24px}
+  .m-play{min-height:110px;font-size:20px}
+  .m-play svg{width:22px;height:22px}
+  #scriptView .legend{margin-top:22px}
+  .blk{scroll-margin-top:30px}
+}
 @media (max-width:360px){.bento{gap:9px}.tile{padding:13px;border-radius:24px}.t-manus .tb{font-size:18px}}
 @media (prefers-reduced-motion: reduce){.meter i,.blk.line,.tile{transition:none}}
 </style>
@@ -313,7 +389,7 @@ body{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
     <div class="mini">
       <button type="button" class="mt m-roles" data-open="roles">Roller</button>
       <button type="button" class="mt m-scenes" data-open="scenes">Scener</button>
-      <button type="button" class="mt m-set" data-open="settings">Inställn.</button>
+      <button type="button" class="mt m-set" data-open="settings"><span class="sm">Inställn.</span><span class="lg">Inställningar</span></button>
       <button type="button" class="mt m-play" id="mPlay"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"/></svg><span id="mPlayT">Repetera</span></button>
     </div>
   </div>
@@ -993,7 +1069,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 42</p>`;};
+<p class="note">Motläsaren version 43</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
