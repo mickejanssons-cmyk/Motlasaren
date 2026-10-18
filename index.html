@@ -443,8 +443,9 @@ function unlockSpeech(){if(!hasTTS||unlocked)return;try{const u=new SpeechSynthe
 /* ---------- Piper: AI-röster som körs i telefonen (rösten laddas en gång och återanvänds) ---------- */
 const PIPER_BASE={'sv_SE-nst-medium':'NST','sv_SE-lisa-medium':'Lisa','sv_SE-alma-medium':'Alma'};
 const PIPER_VARIANTS=[['',''],['@0.87@1.06',' – mörk'],['@1.12@0.95',' – ljus']];
-const PIPER_VOICES={'sv_SE-nst-medium':'NST (man)','sv_SE-nst-medium@0.87@1.06':'NST mörk (man)','sv_SE-lisa-medium':'Lisa (kvinna)','sv_SE-lisa-medium@1.12@0.95':'Lisa ljus (kvinna)'};
-const PIPER_ORDER=['sv_SE-nst-medium','sv_SE-lisa-medium','sv_SE-nst-medium@0.87@1.06','sv_SE-lisa-medium@1.12@0.95'];
+const PIPER_GENDER={'sv_SE-nst-medium':'man','sv_SE-lisa-medium':'kvinna','sv_SE-alma-medium':'kvinna'};
+const PIPER_VOICES={};for(const b in PIPER_BASE)for(const [k,l] of PIPER_VARIANTS)PIPER_VOICES[b+k]=PIPER_BASE[b]+l+' ('+PIPER_GENDER[b]+')';
+const PIPER_ORDER=['sv_SE-nst-medium','sv_SE-lisa-medium','sv_SE-nst-medium@0.87@1.06','sv_SE-lisa-medium@1.12@0.95','sv_SE-nst-medium@1.12@0.95','sv_SE-lisa-medium@0.87@1.06'];
 const baseOf=k=>String(k).split('@')[0];
 const variantOf=k=>{const p=String(k).split('@');return {pitch:parseFloat(p[1])||1,len:parseFloat(p[2])||1};};
 const PIPER_URL=id=>'https://huggingface.co/rhasspy/piper-voices/resolve/main/sv/sv_SE/'+id.split('-')[1]+'/medium/'+id+'.onnx';
@@ -855,7 +856,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <p class="note" id="gMsg">${(st.gVoices||[]).length?`${st.gVoices.length} svenska Google-röster finns i listan Röst under Roller.`:'Nyckeln sparas bara i den här telefonen.'}</p>
 <button type="button" class="ghost" id="gAssign"${(st.gVoices||[]).length?'':' hidden'}>Ge alla motspelare olika Google-röster</button></div>
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
-<p class="note">Fyra gratis AI-röster som körs i telefonen: NST och NST mörk (män), Lisa och Lisa ljus (kvinnor). Det är bara två nedladdningar på ungefär 60 MB var, eftersom de mörka och ljusa varianterna bygger på samma röst. Fungerar utan internet efter nedladdningen.</p>
+<p class="note">Nio gratis AI-röster som körs i telefonen: NST (man), Lisa och Alma (kvinnor), var och en i en vanlig, en mörk och en ljus variant. Varianterna av samma röst kostar ingen extra nedladdning. Varje grundröst är ungefär 60 MB och laddas ner första gången den används. Fungerar utan internet efter nedladdningen.</p>
 <button type="button" class="ghost" id="sPiperLoad">Ladda ner rösterna som används nu</button>
 <div><div class="kv"><span>Min taltakt</span><span id="pcv">${paceLabel(st.pace||1)}</span></div><input type="range" id="sPace" min=".7" max="1.8" step=".05" value="${st.pace||1}" aria-label="Hur mycket tid appen ger dig per replik"></div>
 <div><div class="kv"><span>Tystnad efter din replik innan appen går vidare</span><span id="qsv">${(st.quietSec||.8).toFixed(1)} s</span></div><input type="range" id="sQuiet" min=".4" max="4" step=".1" value="${st.quietSec||.8}" aria-label="Sekunder tystnad innan appen går vidare"></div>
@@ -867,7 +868,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 38</p>`;};
+<p class="note">Motläsaren version 39</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
