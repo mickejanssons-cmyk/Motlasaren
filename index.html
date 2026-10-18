@@ -259,6 +259,32 @@ details[open] > *:not(summary){margin-top:8px}
 .meter.big{height:10px;border-radius:5px}
 #toast{position:fixed;max-width:520px;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:60;max-width:calc(100% - 32px);
   background:var(--ink);color:var(--stage);padding:12px 18px;border-radius:22px;font-size:14px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+
+/* två vyer: förstasida och manus */
+body{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+#home .top{padding-top:22px}
+#home .top-row{margin-bottom:18px}
+.hint-home{margin:18px 4px 0;font-size:15px;color:var(--muted);text-align:center}
+.t-manus{cursor:pointer}
+.t-manus .top2{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.swap{border:0;background:#fff;color:#E07A2E;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:900;flex:none}
+.sbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:7;margin:0 -16px;padding:10px 16px 10px;background:color-mix(in srgb,var(--stage) 86%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);border-bottom:1px solid var(--rule)}
+.sbar-r1{display:flex;align-items:center;gap:10px;margin-bottom:8px;min-width:0}
+.back{display:inline-flex;align-items:center;gap:2px;border:0;background:var(--wing);border-radius:999px;padding:6px 12px 6px 6px;font-size:14px;font-weight:800;flex:none;box-shadow:0 2px 8px rgba(30,30,60,.08)}
+.back svg{width:18px;height:18px}
+.stitle{font-weight:900;font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini{display:grid;grid-template-columns:1fr 1fr 1fr 1.35fr;gap:7px}
+.mt{border:0;border-radius:14px;min-height:40px;padding:0 6px;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 4px 12px rgba(30,30,60,.12),inset 0 1px 0 rgba(255,255,255,.25)}
+.mt:active{transform:scale(.96)}
+.m-roles{background:var(--g-purple)}
+.m-scenes{background:var(--g-coral)}
+.m-set{background:var(--g-lime)}
+.m-play{background:linear-gradient(135deg,#58B6F2,#2145D8)}
+.m-play svg{width:14px;height:14px;flex:none}
+#mPlayT{overflow:hidden;text-overflow:ellipsis}
+#scriptView .legend{margin:12px 2px 0}
+#script{margin-top:12px}
+.blk{scroll-margin-top:130px}
 @media (max-width:360px){.bento{gap:9px}.tile{padding:13px;border-radius:24px}.t-manus .tb{font-size:18px}}
 @media (prefers-reduced-motion: reduce){.meter i,.blk.line,.tile{transition:none}}
 </style>
@@ -266,10 +292,11 @@ details[open] > *:not(summary){margin-top:8px}
 </head>
 <body>
 <div class="wrap">
+  <section id="home">
   <header class="top">
     <div class="top-row"><span class="logo">Mot<i>läsaren</i></span><span class="sub" id="title"></span></div>
     <div class="bento">
-      <button type="button" class="tile t-manus" data-open="import"><span class="tl">Manus</span><span class="tb" id="tTitle">Inget manus</span><span class="tm" id="tMeta"></span><span class="slider" aria-hidden="true"><b id="tPosB" style="width:0%"></b><i id="tPosI" style="left:0%"></i></span></button>
+      <div class="tile t-manus" id="tManus" role="button" tabindex="0"><span class="top2"><span class="tl">Manus</span><button type="button" class="swap" data-open="import">Byt manus</button></span><span class="tb" id="tTitle">Inget manus</span><span class="tm" id="tMeta"></span><span class="slider" aria-hidden="true"><b id="tPosB" style="width:0%"></b><i id="tPosI" style="left:0%"></i></span></div>
       <button type="button" class="tile t-roles" data-open="roles"><span class="tog" aria-hidden="true">PÅ</span><span class="tl">Roller</span><span class="me" id="tMe">Välj din roll</span></button>
       <button type="button" class="tile t-scenes" data-open="scenes"><span class="top2"><span class="tl">Scener</span><span class="num" id="tScenes">0</span></span><span class="wave" aria-hidden="true"><i style="height:30%"></i><i style="height:80%"></i><i style="height:45%"></i><i style="height:100%"></i><i style="height:35%"></i><i style="height:70%"></i><i style="height:25%"></i><i style="height:90%"></i><i style="height:50%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:85%"></i></span></button>
       <button type="button" class="tile t-set" data-open="settings"><span class="big" id="tVoices">0<small>röster</small></span><span class="tl">Inställningar</span></button>
@@ -277,14 +304,27 @@ details[open] > *:not(summary){margin-top:8px}
       <div class="tile t-ring" aria-label="Hur långt du har kommit i manuset"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="rgba(20,70,30,.45)" stroke-width="9"/><circle id="tRing" cx="50" cy="50" r="42" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264" transform="rotate(-90 50 50)"/></svg><span class="rc"><b id="tPct">0 %</b><span>av manuset</span></span></div>
       <button type="button" class="tile t-start" id="tStart"><span class="q" aria-hidden="true">&ldquo;&rdquo;</span><span class="tl">Från början</span></button>
     </div>
-    <p class="legend"><mark>Markerat</mark> = du läser själv. Tryck på en replik för att växla mellan dig och AI.</p>
+    <p class="hint-home">Tryck på <b>Manus</b> för att läsa och markera, eller på <b>Repetera</b> för att börja öva.</p>
   </header>
+  </section>
+  <section id="scriptView" hidden>
+  <div class="sbar">
+    <div class="sbar-r1"><button type="button" class="back" id="goHome" aria-label="Till förstasidan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Hem</button><span class="stitle" id="sTitle"></span></div>
+    <div class="mini">
+      <button type="button" class="mt m-roles" data-open="roles">Roller</button>
+      <button type="button" class="mt m-scenes" data-open="scenes">Scener</button>
+      <button type="button" class="mt m-set" data-open="settings">Inställn.</button>
+      <button type="button" class="mt m-play" id="mPlay"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"/></svg><span id="mPlayT">Repetera</span></button>
+    </div>
+  </div>
+  <p class="legend"><mark>Markerat</mark> = du läser själv. Tryck på en replik för att växla mellan dig och AI.</p>
   <div id="exBanner" class="banner" hidden>Det här är ett exempelmanus. <button type="button" data-open="import">Lägg in ditt eget</button></div>
   <div id="ttsBanner" class="banner" hidden>Den här vyn har ingen talsyntes, så AI:n kan inte läsa högt här.</div>
   <main id="script"></main>
+  </section>
 </div>
 
-<div class="bar"><div class="wrap">
+<div class="bar" hidden><div class="wrap">
   <button type="button" id="playFrom" class="primary">Repetera</button>
   <button type="button" id="playStart" class="ghost">Från början</button>
 </div></div>
@@ -786,7 +826,7 @@ function renderBar(){const q=S.script.blocks.filter(b=>b.type==='line');const i=
     let sc=0;try{sc=sections().length;}catch(e){}$('#tScenes').textContent=sc;
     const used=new Set(roles.filter(c=>!me.includes(c.name)).map(c=>{const id=piperVoiceOf(charCfg(c.name));return id||'sys';}));
     $('#tVoices').innerHTML=`${used.size}<small>${used.size===1?'röst':'röster'}</small>`;
-    $('#tPlayS').textContent=i>0?`från replik ${i+1}`:'från början';$('#tStart').hidden=false;
+    $('#tPlayS').textContent=i>0?`från replik ${i+1}`:'från början';$('#mPlayT').textContent=i>0?'Fortsätt':'Repetera';$('#sTitle').textContent=S.script.title||'';$('#tStart').hidden=false;
     $('#tPct').textContent=pct+' %';$('#tRing').setAttribute('stroke-dasharray',`${(pct/100*264).toFixed(1)} 264`);
     $('#tRail1').style.setProperty('--fill',Math.max(8,pct)+'%');$('#tRail2').style.setProperty('--fill',Math.min(92,Math.max(8,100-pct*.6))+'%');}catch(e){}}
 function renderAll(){$('#title').textContent=S.script.title||'';$('#exBanner').hidden=!S.example;$('#ttsBanner').hidden=hasTTS;renderScript();renderBar();}
@@ -796,7 +836,13 @@ $('#script').onclick=e=>{const el=e.target.closest('.blk');if(!el)return;const b
   el.outerHTML=blockHTML(b);toast(now==='me'?`Du läser ${b.who} här.`:`AI läser ${b.who} här.`);};
 $('#playFrom').onclick=()=>{const b=S.pos&&findB(S.pos);startRehearsal(b?b.id:null);};
 $('#playStart').onclick=()=>startRehearsal(null);
-$('#tPlay').onclick=()=>$('#playFrom').click();$('#tStart').onclick=()=>startRehearsal(null);
+$('#tPlay').onclick=()=>$('#playFrom').click();$('#mPlay').onclick=()=>$('#playFrom').click();
+function showView(v){const sc=v==='script';$('#home').hidden=sc;$('#scriptView').hidden=!sc;window.scrollTo(0,0);
+  if(sc){const el=S.pos&&document.querySelector(`#script [data-id="${S.pos}"]`);if(el)setTimeout(()=>el.scrollIntoView({block:'center'}),30);}}
+window.__showView=showView;
+$('#tManus').onclick=e=>{if(e.target.closest('[data-open]'))return;showView('script');};
+$('#tManus').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showView('script');}};
+$('#goHome').onclick=()=>showView('home');$('#tStart').onclick=()=>startRehearsal(null);
 document.querySelectorAll('[data-open]').forEach(btn=>btn.onclick=()=>openSheet(btn.dataset.open));
 
 /* ---------- ark ---------- */
@@ -846,7 +892,7 @@ ${rows}
 <button type="button" class="primary" id="scPrep">Förbered rösterna för hela manuset</button>
 <p class="note">Skapar ljudet för alla AI-repliker i förväg, så att AI:n svarar direkt under repetitionen. Görs en gång och sparas i telefonen. Du kan också förbereda en scen i taget med knappen vid scenen.</p>`;};
 BIND.scenes=(_,p)=>{const ss=sections();
-  p.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const x=ss[+b.dataset.k];closeSheet();const bl=S.script.blocks[x.start];const el=bl&&document.querySelector(`[data-id="${bl.id}"]`);const hd=x.id&&document.querySelector(`[data-id="${x.id}"]`);(hd||el)&&(hd||el).scrollIntoView({block:'start'});});
+  p.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const x=ss[+b.dataset.k];closeSheet();window.__showView&&window.__showView('script');const bl=S.script.blocks[x.start];const el=bl&&document.querySelector(`[data-id="${bl.id}"]`);const hd=x.id&&document.querySelector(`[data-id="${x.id}"]`);(hd||el)&&(hd||el).scrollIntoView({block:'start'});});
   p.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>startRehearsal(null,ss[+b.dataset.play]));
   $('#scAll',p).onclick=()=>startRehearsal(null);
   $('#scPrep',p).onclick=()=>prepare(S.script.blocks,S.script.title||'Hela manuset');
@@ -947,7 +993,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 41</p>`;};
+<p class="note">Motläsaren version 42</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
