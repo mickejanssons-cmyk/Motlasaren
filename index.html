@@ -501,7 +501,13 @@ async function googleVoices(){const key=(S.settings.gKey||'').trim();if(!key)thr
   const res=await fetch('https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key='+encodeURIComponent(key));const j=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error((j.error&&j.error.message)||('HTTP '+res.status));
   const rank=n=>/Chirp3-HD/.test(n)?0:/Chirp/.test(n)?1:/Neural2/.test(n)?2:/Wavenet/i.test(n)?3:4;
-  return (j.voices||[]).filter(v=>(v.languageCodes||[]).includes('sv-SE')).map(v=>({name:v.name,g:v.ssmlGender})).sort((a,b)=>rank(a.name)-rank(b.name)||a.name.localeCompare(b.name));}
+  const all=(j.voices||[]).filter(v=>(v.languageCodes||[]).includes('sv-SE')).map(v=>({name:v.name,g:v.ssmlGender}));
+  const PREF=['Kore','Charon','Aoede','Puck','Leda','Orus','Zephyr','Fenrir','Despina','Iapetus'];
+  const pr=n=>{const i=PREF.findIndex(p=>n.endsWith('-'+p));return i<0?99:i;};
+  all.sort((a,b)=>rank(a.name)-rank(b.name)||pr(a.name)-pr(b.name)||a.name.localeCompare(b.name));
+  const out=[],cnt={MALE:0,FEMALE:0};for(const v of all){if(out.length>=10)break;const g=v.g==='MALE'?'MALE':'FEMALE';if(cnt[g]>=5)continue;cnt[g]++;out.push(v);}
+  for(const v of all){if(out.length>=10)break;if(!out.includes(v))out.push(v);}
+  return out;}
 const gLabel=v=>v.name.replace(/^sv-SE-/,'').replace('Chirp3-HD-','Chirp HD – ')+(v.g==='FEMALE'?' (kvinna)':v.g==='MALE'?' (man)':'');
 async function lineAudio(id,text,pitch){if(isGoogle(id))pitch=1;const k=diskKey(id,pitch,text);let blob=await diskGet(k);if(!blob){blob=isGoogle(id)?await googleSynth(id.slice(7),text):await piperSynth(id,text,pitch);await diskPut(k,blob);}return blob;}
 function piperSay(id,text,pitch){pitch=Math.round((pitch||variantOf(id).pitch)*100)/100;const key=id+'|'+pitch+'|'+text;if(PIPER.cache.has(key))return PIPER.cache.get(key);
@@ -892,7 +898,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTi
 if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoices();if(sheetKind==='roles'||sheetKind==='settings')openSheet(sheetKind,sheetArg,true);};}catch(e){}}
 if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
 renderAll();
-if(S.settings.gKey&&!(S.settings.gVoices||[]).length)googleVoices().then(v=>{S.settings.gVoices=v;save();}).catch(()=>{});
+if(S.settings.gKey&&!((S.settings.gVoices||[]).length>0&&(S.settings.gVoices||[]).length<=10))googleVoices().then(v=>{S.settings.gVoices=v;save();}).catch(()=>{});
 /* Google-nyckel via länk: #gkey=förslag1,förslag2 … appen provar och sparar den som fungerar */
 (async()=>{const m=location.hash.match(/^#gkey=([A-Za-z0-9_,\-]+)$/);if(!m)return;
   const box=document.createElement('div');box.style.cssText='position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:9999;background:#1d1a17;color:#f3ead8;border:1px solid #c9a24a;border-radius:14px;padding:16px;font:15px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 10px 40px #0008';
