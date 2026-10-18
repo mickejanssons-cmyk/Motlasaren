@@ -768,6 +768,7 @@ BIND.scenes=(_,p)=>{const ss=sections();
 BUILD.roles=()=>{const cs=charList();const sv=svVoices();
   return `<h3>Roller och röster <button type="button" class="x">Klar</button></h3>
 <p class="note">Bocka för din roll. AI:n läser alla andra. Du kan också trycka på enskilda repliker i manuset för att byta.</p>
+${(S.settings.gVoices||[]).length?'':`<p class="warn">${S.settings.gKey?'Google-nyckeln finns men rösterna har inte hämtats. Öppna Inställningar och tryck Testa nyckeln.':'Google-rösterna är inte inkopplade i den här webbläsaren än. Öppna nyckellänken från Claude i Safari (håll fingret på länken och välj Öppna i Safari).'}</p>`}
 ${hasTTS&&!sv.length?'<p class="warn">Hittar ingen svensk röst i telefonen just nu. Rösterna kan ta en stund att dyka upp första gången.</p>':''}
 ${cs.map((c,i)=>{const cfg=ensureChar(c.name),mine=S.settings.mine.includes(c.name);
   return `<div class="role" data-name="${esc(c.name)}">
@@ -891,6 +892,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTi
 if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoices();if(sheetKind==='roles'||sheetKind==='settings')openSheet(sheetKind,sheetArg,true);};}catch(e){}}
 if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
 renderAll();
+if(S.settings.gKey&&!(S.settings.gVoices||[]).length)googleVoices().then(v=>{S.settings.gVoices=v;save();}).catch(()=>{});
 /* Google-nyckel via länk: #gkey=förslag1,förslag2 … appen provar och sparar den som fungerar */
 (async()=>{const m=location.hash.match(/^#gkey=([A-Za-z0-9_,\-]+)$/);if(!m)return;
   const box=document.createElement('div');box.style.cssText='position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:9999;background:#1d1a17;color:#f3ead8;border:1px solid #c9a24a;border-radius:14px;padding:16px;font:15px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 10px 40px #0008';
