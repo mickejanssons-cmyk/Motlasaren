@@ -361,6 +361,11 @@ body{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
   #scriptView .legend{margin-top:22px}
   .blk{scroll-margin-top:30px}
 }
+.gget{margin-top:18px;border-radius:var(--r);padding:18px;background:var(--wing);display:grid;gap:12px;box-shadow:0 10px 24px rgba(30,30,60,.08)}
+.gget span{display:block;color:var(--muted);font-size:14px;margin-top:3px}
+.gget .gGetBtn{border:0;border-radius:999px;min-height:52px;font-weight:900;font-size:17px;color:#fff;background:linear-gradient(135deg,#58B6F2,#2145D8);box-shadow:0 10px 24px var(--glow)}
+.gget-p{display:flex;gap:8px}.gget-p input{flex:1}.gget-p button{border:0;border-radius:999px;padding:0 18px;font-weight:800;background:var(--wing-2)}
+#gGetMsg{margin:0;font-size:14px;color:var(--muted)}#gGetMsg:empty{display:none}
 @media (max-width:360px){.bento{gap:9px}.tile{padding:13px;border-radius:24px}.t-manus .tb{font-size:18px}}
 @media (prefers-reduced-motion: reduce){.meter i,.blk.line,.tile{transition:none}}
 </style>
@@ -380,6 +385,8 @@ body{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
       <div class="tile t-ring" aria-label="Hur långt du har kommit i manuset"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="rgba(20,70,30,.45)" stroke-width="9"/><circle id="tRing" cx="50" cy="50" r="42" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264" transform="rotate(-90 50 50)"/></svg><span class="rc"><b id="tPct">0 %</b><span>av manuset</span></span></div>
       <button type="button" class="tile t-start" id="tStart"><span class="q" aria-hidden="true">&ldquo;&rdquo;</span><span class="tl">Från början</span></button>
     </div>
+    <div id="gGet" class="gget" hidden><div><b>De bra rösterna (Google) är inte inkopplade här.</b><span>Kopiera nyckeln i Safari först (nyckellänken från Claude), tryck sedan här.</span></div><button type="button" class="gGetBtn">Hämta Google-rösterna</button>
+      <div id="gGetPaste" class="gget-p" hidden><input type="text" id="gGetIn" placeholder="Klistra in nyckeln här" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" id="gGetSave">Spara</button></div><p id="gGetMsg"></p></div>
     <p class="hint-home">Tryck på <b>Manus</b> för att läsa och markera, eller på <b>Repetera</b> för att börja öva.</p>
   </header>
   </section>
@@ -902,7 +909,7 @@ function renderBar(){const q=S.script.blocks.filter(b=>b.type==='line');const i=
     let sc=0;try{sc=sections().length;}catch(e){}$('#tScenes').textContent=sc;
     const used=new Set(roles.filter(c=>!me.includes(c.name)).map(c=>{const id=piperVoiceOf(charCfg(c.name));return id||'sys';}));
     $('#tVoices').innerHTML=`${used.size}<small>${used.size===1?'röst':'röster'}</small>`;
-    $('#tPlayS').textContent=i>0?`från replik ${i+1}`:'från början';$('#mPlayT').textContent=i>0?'Fortsätt':'Repetera';$('#sTitle').textContent=S.script.title||'';$('#tStart').hidden=false;
+    $('#tPlayS').textContent=i>0?`från replik ${i+1}`:'från början';$('#mPlayT').textContent=i>0?'Fortsätt':'Repetera';$('#sTitle').textContent=S.script.title||'';$('#gGet').hidden=!!(S.settings.gVoices||[]).length;$('#tStart').hidden=false;
     $('#tPct').textContent=pct+' %';$('#tRing').setAttribute('stroke-dasharray',`${(pct/100*264).toFixed(1)} 264`);
     $('#tRail1').style.setProperty('--fill',Math.max(8,pct)+'%');$('#tRail2').style.setProperty('--fill',Math.min(92,Math.max(8,100-pct*.6))+'%');}catch(e){}}
 function renderAll(){$('#title').textContent=S.script.title||'';$('#exBanner').hidden=!S.example;$('#ttsBanner').hidden=hasTTS;renderScript();renderBar();}
@@ -976,7 +983,7 @@ BIND.scenes=(_,p)=>{const ss=sections();
 BUILD.roles=()=>{const cs=charList();const sv=svVoices();
   return `<h3>Roller och röster <button type="button" class="x">Klar</button></h3>
 <p class="note">Bocka för din roll. AI:n läser alla andra. Du kan också trycka på enskilda repliker i manuset för att byta.</p>
-${(S.settings.gVoices||[]).length?'':`<p class="warn">${S.settings.gKey?'Google-nyckeln finns men rösterna har inte hämtats. Öppna Inställningar och tryck Testa nyckeln.':'Google-rösterna är inte inkopplade i den här webbläsaren än. Öppna nyckellänken från Claude i Safari (håll fingret på länken och välj Öppna i Safari).'}</p>`}
+${(S.settings.gVoices||[]).length?'':`<p class="warn">${S.settings.gKey?'Google-nyckeln finns men rösterna har inte hämtats. Öppna Inställningar och tryck Testa nyckeln.':'Google-rösterna är inte inkopplade här än. <button type="button" class="ghost gGetBtn" style="margin-top:8px">Hämta Google-rösterna</button>'}</p>`}
 ${cs.map((c,i)=>{const cfg=ensureChar(c.name),mine=S.settings.mine.includes(c.name);
   return `<div class="role" data-name="${esc(c.name)}">
   <div class="role-h"><label class="chk"><input type="checkbox" id="mine-${i}" class="mineChk"${mine?' checked':''}><b style="color:var(--c${charIndex(c.name)})">${esc(c.name)}</b></label><span class="cnt">${c.count} repliker</span></div>
@@ -1054,6 +1061,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <div class="gbox"><b>Google-röster</b>
 <label class="f" for="gKey">Nyckel från Google Cloud (API key)</label><input type="text" id="gKey" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…" value="${esc(st.gKey||'')}">
 <button type="button" class="primary" id="gTest">Spara och hämta svenska röster</button>
+${st.gKey?`<button type="button" class="ghost" id="gCopy">Kopiera nyckeln (till hemskärms-appen eller iPaden)</button>`:''}
 <p class="note" id="gMsg">${(st.gVoices||[]).length?`${st.gVoices.length} svenska Google-röster finns i listan Röst under Roller.`:'Nyckeln sparas bara i den här telefonen.'}</p>
 <button type="button" class="ghost" id="gAssign"${(st.gVoices||[]).length?'':' hidden'}>Ge alla motspelare olika Google-röster</button></div>
 <label class="chk"><input type="checkbox" id="sPiper"${st.piper!==false?' checked':''}>Använd AI-röster (Piper) för motspelarna</label>
@@ -1069,7 +1077,7 @@ BUILD.settings=()=>{const st=S.settings;return `<h3>Inställningar <button type=
 <label class="chk"><input type="checkbox" id="sDirs"${st.readDirs?' checked':''}>Läs upp scenanvisningar</label>
 <div id="narr"${st.readDirs?'':' hidden'}><label class="f" for="sNv">Röst för scenanvisningar</label><select id="sNv">${voiceOptions(st.narrator.voiceURI)}</select></div>
 <button type="button" class="danger" id="sClear">Rensa manus och inställningar</button>
-<p class="note">Motläsaren version 43</p>`;};
+<p class="note">Motläsaren version 44</p>`;};
 BIND.settings=(_,p)=>{const st=S.settings;
   $('#sPs',p).oninput=e=>{st.shortPause=+e.target.value;$('#spv',p).textContent=st.shortPause.toFixed(1)+' s';save();};
   $('#sPl',p).oninput=e=>{st.longPause=+e.target.value;$('#lpv',p).textContent=st.longPause.toFixed(1)+' s';save();};
@@ -1077,6 +1085,7 @@ BIND.settings=(_,p)=>{const st=S.settings;
   $('#gTest',p).onclick=async()=>{st.gKey=$('#gKey',p).value.trim();save();const m=$('#gMsg',p);m.textContent='Kontrollerar nyckeln …';
     try{const v=await googleVoices();st.gVoices=v;save();m.textContent=v.length?`Det fungerar. ${v.length} svenska röster hittades. Välj dem under Roller, eller tryck på knappen nedan.`:'Nyckeln fungerar men inga svenska röster hittades.';$('#gAssign',p).hidden=!v.length;}
     catch(e){m.textContent='Det gick inte: '+(e&&e.message||e);}};
+  if($('#gCopy',p))$('#gCopy',p).onclick=async()=>{const ok=await copyKey(st.gKey);toast(ok?'Nyckeln är kopierad. Öppna Motläsaren från hemskärmen och tryck Hämta Google-rösterna.':'Kunde inte kopiera.');};
   $('#gAssign',p).onclick=()=>{const v=st.gVoices||[];if(!v.length)return;const others=charList().filter(c=>!st.mine.includes(c.name));
     const f=v.filter(x=>x.g==='FEMALE'),mm=v.filter(x=>x.g==='MALE');const pool=[];for(let i=0;i<Math.max(f.length,mm.length);i++){if(mm[i])pool.push(mm[i]);if(f[i])pool.push(f[i]);}
     others.forEach((c,i)=>{ensureChar(c.name).voiceURI='google:'+(pool[i%pool.length]||v[0]).name;});save();toast('Klart. Ändra rösterna under Roller om du vill. Tryck sedan Förbered rösterna under Scener.');};
@@ -1100,6 +1109,16 @@ if(hasTTS){refreshVoices();try{speechSynthesis.onvoiceschanged=()=>{refreshVoice
 if(!load()){S.script={title:'',blocks:parseText(EXAMPLE)};S.settings.mine=['JONAS'];S.example=true;S.script.title='Exempel: Kaffet';charList().forEach(c=>ensureChar(c.name));}
 renderAll();
 if(S.settings.gKey&&!((S.settings.gVoices||[]).length>0&&(S.settings.gVoices||[]).length<=10))googleVoices().then(v=>{S.settings.gVoices=v;save();}).catch(()=>{});
+/* Google-nyckeln mellan Safari och hemskärms-appen (de har var sitt minne i iPhone/iPad) */
+async function copyKey(k){try{await navigator.clipboard.writeText(k);return true;}catch(e){try{const t=document.createElement('textarea');t.value=k;document.body.appendChild(t);t.select();const ok=document.execCommand('copy');t.remove();return ok;}catch(x){return false;}}}
+async function saveKey(k){k=(k||'').trim();const m=k.match(/AIza[0-9A-Za-z_\-]{30,40}/);if(!m)throw new Error('Hittade ingen Google-nyckel i det du klistrade in.');
+  const old=S.settings.gKey;S.settings.gKey=m[0];try{const v=await googleVoices();S.settings.gVoices=v;save();renderAll();return v.length;}catch(e){S.settings.gKey=old;throw e;}}
+async function getGoogleVoices(){const msg=$('#gGetMsg');const say=t=>{if(msg)msg.textContent=t;else toast(t);};
+  let txt='';try{txt=await navigator.clipboard.readText();}catch(e){}
+  if(!/AIza/.test(txt||'')){const box=$('#gGetPaste');if(box){box.hidden=false;$('#gGetIn').focus();}say('Håll fingret i rutan, välj Klistra in och tryck Spara.');return;}
+  say('Kontrollerar …');try{const n=await saveKey(txt);toast(`Klart! ${n} Google-röster finns nu under Roller. De ligger kvar här.`);}catch(e){say(String(e.message||e));}}
+document.addEventListener('click',e=>{const b=e.target.closest('.gGetBtn');if(b){e.preventDefault();closeSheet&&$('#sheet')&&!$('#sheet').hidden&&closeSheet();if(!$('#home').hidden||1){window.__showView&&window.__showView('home');}getGoogleVoices();}
+  if(e.target.closest('#gGetSave')){saveKey($('#gGetIn').value).then(n=>toast(`Klart! ${n} Google-röster finns nu under Roller. De ligger kvar här.`)).catch(er=>{$('#gGetMsg').textContent=String(er.message||er);});}});
 /* Google-nyckel via länk: #gkey=förslag1,förslag2 … appen provar och sparar den som fungerar */
 (async()=>{const m=location.hash.match(/^#gkey=([A-Za-z0-9_,\-]+)$/);if(!m)return;
   const box=document.createElement('div');box.style.cssText='position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:9999;background:#1d1a17;color:#f3ead8;border:1px solid #c9a24a;border-radius:14px;padding:16px;font:15px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 10px 40px #0008';
@@ -1108,7 +1127,7 @@ if(S.settings.gKey&&!((S.settings.gVoices||[]).length>0&&(S.settings.gVoices||[]
   const cands=m[1].split(',').filter(Boolean);let errs=[];
   for(const k of cands){try{const r=await fetch('https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key='+encodeURIComponent(k));const j=await r.json().catch(()=>({}));
       if(r.ok){S.settings.gKey=k;const v=await googleVoices();S.settings.gVoices=v;save();try{history.replaceState(null,'',location.pathname);}catch(e){}
-        show(`<b>Klart! Google-nyckeln är sparad.</b><br>${v.length} svenska röster finns nu under Roller.<br><br>Nästa steg: Inställningar → ”Ge alla motspelare olika Google-röster”, sedan Scener → ”Förbered rösterna”.`);return;}
+        show(`<b>Klart! Google-nyckeln är sparad i Safari.</b><br>${v.length} svenska röster finns nu under Roller.<br><br><b>Använder du Motläsaren från ikonen på hemskärmen?</b> Tryck på knappen nedan, öppna sedan appen från ikonen och tryck <b>Hämta Google-rösterna</b> på förstasidan.<div style="margin-top:10px"><button type="button" id="gCopyBox" style="font:inherit;font-weight:700;padding:10px 16px;border-radius:999px;border:0;background:#fff;color:#1d1a17">Kopiera nyckeln</button> <span id="gCopyMsg"></span></div>`);const cb=document.getElementById('gCopyBox');if(cb)cb.onclick=async e=>{e.stopPropagation();const ok=await copyKey(k);document.getElementById('gCopyMsg').textContent=ok?'Kopierad!':'Gick inte att kopiera.';};return;}
       errs.push((j.error&&j.error.message)||('HTTP '+r.status));}catch(e){errs.push('Nätverksfel: '+e.message);}}
   const all=errs.join(' ');let why;
   if(/has not been used|is disabled|SERVICE_DISABLED|not enabled/i.test(all))why='Nyckeln stämmer, men <b>Googles rösttjänst är inte påslagen</b> i ditt projekt. Säg till Claude, så får du en knapp att trycka på.';
